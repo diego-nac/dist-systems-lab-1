@@ -1,170 +1,134 @@
 import socket
-import struct
 import threading
 import time
+from google.protobuf.message import DecodeError
+from device_pb2 import DiscoveryMessage, DeviceRequest, DeviceResponse, SensorData, GatewayReport
 
-# Parâmetros de configuração do grupo de multicast
-MCAST_GROUP = '224.0.0.1'  # Endereço multicast
-MCAST_PORT = 5000          # Porta multicast
-BUFFER_SIZE = 1024         # Tamanho do buffer para leitura de mensagens
+# Configurações do Gateway
+UDP_MULTICAST_GROUP = "239.255.255.250"
+UDP_MULTICAST_PORT = 12345
+TCP_SERVER_PORT = 54321
 
-# Função para parsear a informação do dispositivo a partir da mensagem multicast
-def parse_device_info(message, addr, discovered_ips, devices):
-    try:
-        # Exemplo de mensagem: "Dispositivo lampada123 foi descoberto, IP: 192.168.0.10, Porta: 6000"
-        parts = message.split(',')
-        device_id = parts[0].split(' ')[1]  # Obtém o ID do dispositivo
-        device_ip = parts[1].split(':')[1].strip()  # Obtém o IP do dispositivo
-        device_port = int(parts[2].split(':')[1].strip())  # Obtém a porta do dispositivo
+discovered_devices = {}
+"""
+Estrutura:
+{
+    id: {
+        "device_type": str,
+        "ip": str,
+        "port": int,
+        "active": bool
+    }
+}
+"""
 
-        # Agora, utilizamos o IP e porta do remetente (no 'addr') como a origem da descoberta
-        sender_ip = addr[0]  # IP de quem enviou a mensagem (endereço do multicast)
-        sender_port = addr[1]  # Porta de quem enviou a mensagem
+def handle_udp_multicast():
+    """
+    Manipula as mensagens de descoberta enviadas pelos dispositivos via UDP multicast.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as udp_socket:
+        udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        udp_socket.bind(("", UDP_MULTICAST_PORT))
 
-        if "Sensor" in message:
-            # Exibe a temperatura recebida
-            temperature = parts[3].split(':')[1].strip()
-            print(f"Temperatura recebida de {device_id} ({device_ip}:{device_port}): {temperature}°C")
-            devices[device_id] = {'ip': device_ip, 'port': device_port, 'type': 'sensor', 'temperature': temperature}
-        elif "Dispositivo" in message:
-            # Lógica para dispositivos de lâmpada
-            luminosity = parts[4].split(':')[1].strip()
-            if device_ip not in discovered_ips:
-                print(f"Dispositivo {device_id} localizado em {device_ip}:{device_port}.")
-                discovered_ips.add(device_ip)
-            devices[device_id] = {'ip': device_ip, 'port': device_port, 'type': 'lamp', 'luminosity': luminosity}
+        multicast_request = socket.inet_aton(UDP_MULTICAST_GROUP) + socket.inet_aton("0.0.0.0")
+        udp_socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, multicast_request)
 
+        print(f"[INFO] Aguardando mensagens de descoberta na porta {UDP_MULTICAST_PORT}...")
 
-    except Exception as e:
-        print(f"Erro ao parsear a mensagem: {e}")
-
-# Função para escutar as mensagens de multicast
-def multicast_receiver(devices, discovered_ips):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(('0.0.0.0', MCAST_PORT))
-
-    group = socket.inet_aton(MCAST_GROUP)
-    mreq = struct.pack('4sL', group, socket.INADDR_ANY)
-    sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-
-    print(f"Gateway aguardando mensagens de multicast em {MCAST_GROUP}:{MCAST_PORT}...")
-
-    while True:
-        data, addr = sock.recvfrom(BUFFER_SIZE)
-        message = data.decode('utf-8')
-        print(f"Mensagem recebida de {addr}: {message}")
-
-        # Aqui, o gateway descobre o dispositivo e armazena informações (IP, Porta, ID)
-        parse_device_info(message, addr, discovered_ips, devices)
-
-# Função para enviar comandos de controle para o dispositivo via TCP
-def change_device_state(device_ip, device_port, command):
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
-            client_socket.connect((device_ip, device_port))
-            print(f"Conectado ao dispositivo {device_ip}:{device_port}. Enviando comando: {command}")
-
-            # Enviar comando para o dispositivo
-            client_socket.sendall(command.encode())
-
-            # Receber a resposta do dispositivo
-            response = client_socket.recv(1024)
-            print(f"Resposta do dispositivo: {response.decode()}")
-    except (socket.timeout, socket.error) as e:
-        print(f"Erro ao conectar no dispositivo {device_ip}:{device_port}. Erro: {e}")
-
-# Função para escutar comandos do cliente (via TCP) para controlar dispositivos
-def client_listener(devices):
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(('localhost', 7000))  # Porta do servidor TCP do gateway para escutar comandos do cliente
-    server_socket.listen(5)
-    print("Gateway aguardando comandos do cliente na porta 7000...")
-
-    while True:
-        client_socket, client_address = server_socket.accept()
-        
-        print(f"Conexão recebida de {client_address}")
-
-        # Receber o comando do cliente
-        command = client_socket.recv(1024).decode()
-        if command:
-            print(f"Comando recebido do cliente: {command}")
-        # Dividir o comando para obter o ID do dispositivo e o comando (ligar, desligar, luminosidade, listar dispositivos)
-        command_parts = command.split()
-
-        if command_parts[0].lower() == 'listar' and command_parts[1].lower() == 'dispositivos':
-            # Comando para listar dispositivos
-            if devices:
-                device_list = ""
-                for device_id, device_info in devices.items():
-                    if device_info['type'] == 'lamp':
-                        device_list += f"{device_id}: {device_info['ip']}:{device_info['port']} (Lâmpada) - Luminosidade: {device_info['luminosity']}%\n"
-                    elif device_info['type'] == 'sensor':
-                        device_list += f"{device_id}: {device_info['ip']}:{device_info['port']} (Sensor de Temperatura) - Temperatura: {device_info['temperature']}\n"
-                client_socket.sendall(f"Dispositivos encontrados:\n{device_list}".encode())
-            else:
-                client_socket.sendall("Nenhum dispositivo encontrado.".encode())
-
-        # Comando para ligar ou desligar dispositivos
-        elif len(command_parts) == 2:
-            action = command_parts[0]
-            device_id = command_parts[1]
-
-            # Verificar se o dispositivo existe
-            if device_id in devices:
-                device_ip, device_port = devices[device_id]['ip'], devices[device_id]['port']
-                threading.Thread(target=change_device_state, args=(device_ip, device_port, action)).start()
-                # Enviar resposta ao cliente
-                client_socket.sendall(f"Comando '{action}' para o dispositivo {device_id} foi executado.".encode())
-            else:
-                client_socket.sendall(f"Dispositivo {device_id} não encontrado.".encode())
-
-        # Comando para ajustar a luminosidade
-        elif len(command_parts) == 3 and command_parts[0] == 'luminosidade':
-            
-            device_id = command_parts[1]
+        while True:
+            data, addr = udp_socket.recvfrom(1024)
             try:
-                luminosity_value = int(command_parts[2])
-                if 0 <= luminosity_value <= 100:
-                    if device_id in devices:
-                        devices[device_id]['luminosity'] = luminosity_value  # Atualiza a luminosidade do dispositivo
-                        # Enviar comando para a lâmpada ajustar a luminosidade
-                        device_ip = devices[device_id]['ip']
-                        device_port = devices[device_id]['port']
-                        command = f"luminosidade {luminosity_value}"
-                        threading.Thread(target=change_device_state, args=(device_ip, device_port, command)).start()
-                        client_socket.sendall(f"Luminosidade da lâmpada {device_id} ajustada para {luminosity_value}%.".encode())
-                    else:
-                        client_socket.sendall(f"Dispositivo {device_id} não encontrado.".encode())
-                else:
-                    client_socket.sendall("Valor de luminosidade inválido. Use um valor entre 0 e 100.".encode())
-            except ValueError:
-                client_socket.sendall("Comando luminosidade inválido. Use: 'luminosidade <id> <valor entre 0 e 100>'.".encode())
-        # Caso o comando seja inválido
-        else:
-            client_socket.sendall("Comando inválido. Use: 'ligar <ID>' ou 'desligar <ID>' ou 'luminosidade <ID> <valor entre 0 e 100>'.".encode())
+                discovery_message = DiscoveryMessage()
+                discovery_message.ParseFromString(data)
 
+                discovered_devices[discovery_message.id] = {
+                    "device_type": discovery_message.device_type,
+                    "ip": discovery_message.ip,
+                    "port": discovery_message.port,
+                    "active": discovery_message.active
+                }
+
+                print(f"[INFO] Dispositivo descoberto: {discovery_message}")
+            except DecodeError as e:
+                print(f"[ERRO] Falha ao decodificar mensagem UDP: {e}")
+
+def send_udp_multicast_request():
+    """
+    Envia solicitação multicast para descoberta de dispositivos.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as udp_socket:
+        udp_socket.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
+
+        discovery_request = DiscoveryMessage()
+        discovery_request.device_type = "gateway"
+        message = discovery_request.SerializeToString()
+
+        udp_socket.sendto(message, (UDP_MULTICAST_GROUP, UDP_MULTICAST_PORT))
+        print(f"[INFO] Solicitação de descoberta enviada para {UDP_MULTICAST_GROUP}:{UDP_MULTICAST_PORT}")
+
+def handle_tcp_client(client_socket, address):
+    """
+    Lida com conexões TCP recebidas do cliente para enviar comandos aos dispositivos.
+    """
+    try:
+        print(f"[INFO] Conexão TCP estabelecida com {address}")
+        data = client_socket.recv(1024)
+
+        # Processa a mensagem recebida
+        request = DeviceRequest()
+        request.ParseFromString(data)
+        print(f"[INFO] Comando recebido: {request}")
+
+        # Envia o comando ao dispositivo correspondente
+        device = discovered_devices.get(request.id)
+        if not device:
+            raise ValueError("Dispositivo não encontrado.")
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as device_socket:
+            device_socket.connect((device["ip"], device["port"]))
+            device_socket.send(data)
+
+            # Recebe a resposta do dispositivo
+            response_data = device_socket.recv(1024)
+            response = DeviceResponse()
+            response.ParseFromString(response_data)
+            print(f"[INFO] Resposta do dispositivo: {response}")
+
+            # Envia a resposta de volta ao cliente
+            client_socket.send(response_data)
+
+    except (ValueError, DecodeError) as e:
+        print(f"[ERRO] {e}")
+        response = DeviceResponse(id=request.id if 'request' in locals() else -1, success=False, message=str(e))
+        client_socket.send(response.SerializeToString())
+
+    finally:
         client_socket.close()
 
+def tcp_server():
+    """
+    Servidor TCP para se comunicar com o cliente.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+        server_socket.bind(("0.0.0.0", TCP_SERVER_PORT))
+        server_socket.listen(5)
+        print(f"[INFO] Servidor TCP aguardando conexões na porta {TCP_SERVER_PORT}")
 
-# Função principal que inicia o multicast, aguarda comandos do cliente e controla os dispositivos
-def main():
-    devices = {}  # Dicionário para armazenar os dispositivos descobertos
-    discovered_ips = set()  # Conjunto para armazenar IPs de dispositivos já descobertos
-
-    # Criar uma thread para escutar o multicast sem bloquear a execução principal
-    threading.Thread(target=multicast_receiver, args=(devices, discovered_ips), daemon=True).start()
-
-    # Iniciar o escutador de comandos TCP do cliente
-    threading.Thread(target=client_listener, args=(devices,), daemon=True).start()
-
-    # O gateway continua rodando e pode processar comandos recebidos
-    try:
         while True:
-            time.sleep(1)  # O gateway continua funcionando
-    except KeyboardInterrupt:
-        print("\nInterrompido pelo usuário.")
+            client_socket, address = server_socket.accept()
+            threading.Thread(target=handle_tcp_client, args=(client_socket, address)).start()
 
 if __name__ == "__main__":
-    main()
+    # Descoberta de dispositivos
+    threading.Thread(target=handle_udp_multicast, daemon=True).start()
+    send_udp_multicast_request()
+
+    # Servidor TCP
+    threading.Thread(target=tcp_server, daemon=True).start()
+
+    # Mantém o Gateway ativo
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("[INFO] Gateway encerrado.")
