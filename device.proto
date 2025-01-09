@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package smart_office;
+
+// Mensagem de descoberta para dispositivos reportarem suas informações via UDP Multicast
+message DiscoveryMessage {
+    string device_type = 1;  // Tipo do dispositivo (e.g., "lampada", "ar-condicionado")
+    int32 id = 2;           // Identificador único do dispositivo
+    string ip = 3;          // Endereço IP do dispositivo
+    int32 port = 4;         // Porta de comunicação do dispositivo
+    bool active = 5;        // Estado inicial do dispositivo (se aplicável)
+}
+
+// Mensagem genérica de solicitação para dispositivos inteligentes
+message DeviceRequest {
+    int32 id = 1;           // Identificação do dispositivo
+    string command = 2;     // Comando enviado ao dispositivo (e.g., "ligar", "desligar", "ajustar")
+    map<string, string> parameters = 3; // Parâmetros adicionais do comando (e.g., {"intensidade": "50"})
+}
+
+// Mensagem genérica de resposta de dispositivos inteligentes
+message DeviceResponse {
+    int32 id = 1;           // Identificação do dispositivo
+    bool success = 2;       // Indica se a operação foi bem-sucedida
+    string message = 3;     // Mensagem de erro ou confirmação
+}
+
+// Mensagem periódica enviada por sensores contínuos
+message SensorData {
+    int32 id = 1;           // Identificação do sensor
+    string device_type = 2; // Tipo do dispositivo (e.g., "sensor_temperatura")
+    string timestamp = 3;   // Timestamp da leitura
+    map<string, string> data = 4; // Dados sensoriados (e.g., {"temperatura": "23"})
+}
+
+// Mensagem enviada pelo Gateway ao Cliente para relatar estados
+message GatewayReport {
+    repeated SensorData sensor_data = 1;  // Lista de dados de sensores
+    repeated DeviceResponse device_states = 2; // Lista de estados de dispositivos
+}
