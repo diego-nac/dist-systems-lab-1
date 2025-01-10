@@ -25,7 +25,7 @@ class LoggerConfig:
     def __init__(self, project_name: Optional[str] = PROJECT_NAME) -> None:
         self.project_name: str = project_name
         self.LOG_FORMAT: str = (
-            "%(asctime)s (%(levelname)s) %(name)s/%(module)s - %(message)s"
+            "%(asctime)s %(name)s/%(module)s - %(message)s"
         )
         if not LoggerConfig._logger:
             self.setup_logger()
@@ -41,7 +41,7 @@ class LoggerConfig:
         LoggerConfig._logger = logging.getLogger(self.project_name)
         LoggerConfig._logger.setLevel(LOGGING_LEVELS[validated_mode])
         formatter = logging.Formatter(
-            self.LOG_FORMAT, datefmt="%Y-%m-%d %H:%M:%S"
+            self.LOG_FORMAT, datefmt="%H:%M:%S"
         )
 
         console_handler = logging.StreamHandler(sys.stdout)

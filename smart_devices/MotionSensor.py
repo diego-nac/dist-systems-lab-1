@@ -1,5 +1,4 @@
-from smart_devices.abstract import SmartDevice
-from typing import Dict, Any
+from smart_devices.abstract.SmartDevice import SmartDevice
 from utils import *
 
 class MotionSensor(SmartDevice):
@@ -12,19 +11,20 @@ class MotionSensor(SmartDevice):
             device_ip=device_ip,
             device_port=device_port
         )
+        self.commands = ["ligar", "desligar"]
 
-    def process_command(self, command: Dict[str, Any]) -> Dict[str, Any]:
-        action = command.get("action")
-        if action == "reset":
-            self.update_state("motion_detected", False)
-            return {"status": "success", "message": "Motion sensor reset."}
-        return {"status": "error", "message": "Invalid action."}
-
-    def get_status(self) -> Dict[str, Any]:
-        return {
-            "device_id": self._id,
-            
-            "device_name": self._name,
-            "device_type": self._type,
-            "state": self._state 
-        }
+    def process_command(self, command: str):
+        command = command.lower()
+        if command == "ligar":
+            self.is_on = True
+            return "Motion sensor is ON"
+        elif command == "desligar":
+            self.is_on = False
+            return "Motion sensor is OFF"
+        else:
+            return "Invalid command for motion sensor"
+        
+    def show_commands(self):
+        logger.info(f"Commands for MotionSensor({self._id}:{self._name}): {', '.join(self.commands)}")
+    
+        

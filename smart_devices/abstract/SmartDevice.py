@@ -78,21 +78,12 @@ class SmartDevice(ABC):
         self._port = value
 
     @abstractmethod
-    def process_command(self, command: Dict[str, Any]) -> Dict[str, Any]:
+    def process_command(self, command: str):
         """
         Método abstrato para processar comandos enviados ao dispositivo.
 
         :param command: Um dicionário representando o comando.
         :return: Um dicionário com o resultado da execução do comando.
-        """
-        pass
-
-    @abstractmethod
-    def get_status(self) -> Dict[str, Any]:
-        """
-        Método abstrato para retornar o estado atual do dispositivo.
-
-        :return: Um dicionário representando o estado atual.
         """
         pass
 
@@ -130,10 +121,10 @@ class SmartDevice(ABC):
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
         while True:
-            message = f"Device {self._id}, Name: {self._name}, Type: {self._type}, is_on: {self._is_on}, IP: {self._ip}, Port: {self._port}"
-            logger.info(f"Enviando dados para o gateway: {message}")
+            message = self.__str__()
+            logger.info(f".")
             sock.sendto(message.encode(), (MCAST_GROUP, MCAST_PORT))
-            time.sleep(10)
+            time.sleep(1)
 
     def __str__(self):
         """
@@ -141,4 +132,4 @@ class SmartDevice(ABC):
 
         :return: Uma string representando o dispositivo.
         """
-        return f"SmartDevice(ID: {self._id}, Name: {self._name}, Type: {self._type}, is_on: {self._is_on}, IP: {self._ip}, Port: {self._port})"
+        return f"SmartDevice(ID: {self._id}, Name: {self._name}, Type: {self._type}, Is On: {self._is_on}, IP: {self._ip}, Port: {self._port})"
