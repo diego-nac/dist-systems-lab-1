@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package device;
+
+// Mensagem para a descoberta de dispositivos via multicast
+message DeviceDiscovery {
+    string device_id = 1;   // ID único do dispositivo (ex: lampada1234 ou sensor_1)
+    string device_ip = 2;   // IP do dispositivo
+    int32 device_port = 3;  // Porta do dispositivo
+    string device_type = 4; // Tipo do dispositivo (lâmpada, sensor)
+    string state = 5;       // Estado do dispositivo (ligado, desligado)
+    int32 luminosity = 6;   // Luminosidade (apenas para lâmpada)
+    float temperature = 7;  // Temperatura (apenas para sensor)
+}
+
+// Mensagem para enviar comandos para dispositivos (como ligar/desligar ou ajustar luminosidade)
+message DeviceCommand {
+    string device_id = 1;  // ID do dispositivo
+    string command = 2;    // Comando a ser enviado (ligar, desligar, luminosidade)
+    int32 luminosity = 3;  // Valor de luminosidade (caso o comando seja luminosidade)
+}
+
+// Mensagem de resposta para confirmar a execução do comando
+message CommandResponse {
+    bool success = 1;       // Indica se o comando foi bem-sucedido
+    string message = 2;     // Mensagem de feedback (sucesso ou erro)
+}
+
+// Mensagem para listar dispositivos
+message DeviceList {
+    repeated DeviceDiscovery devices = 1; // Lista de dispositivos encontrados
+}
+
+// Mensagem vazia, usada em vários casos como parâmetro
+message Empty {}

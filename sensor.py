@@ -2,6 +2,7 @@ import socket
 import time
 import random
 import struct
+import device_pb2  # Importando a definição do Protobuf
 
 MCAST_GROUP = '224.0.0.1'  # Endereço multicast do gateway
 MCAST_PORT = 5000          # Porta multicast do gateway
@@ -21,11 +22,23 @@ def send_temperature_data(device_id, device_ip, device_port):
     # Envia os dados do sensor de temperatura para o gateway
     while True:
         temperature = get_temperature()
-        message = f"Sensor {device_id}, IP: {device_ip}, Porta: {device_port}, Temperatura: {temperature}°C"
-        print(f"Enviando dados para o gateway: {message}")
+
+        # Criar a mensagem de descoberta com Protobuf
+        discovery_message = device_pb2.DeviceDiscovery(
+            device_id=device_id,
+            device_ip=device_ip,
+            device_port=device_port,
+            device_type="sensor",  # Tipo do dispositivo
+            state="ativado",  # O sensor pode estar sempre "ativado"
+            temperature=temperature
+        )
+
+        # Serializar a mensagem
+        message = discovery_message.SerializeToString()
+        print(f"Enviando dados para o gateway: Sensor {device_id}, Temperatura: {temperature}°C")
         
         # Envia via multicast
-        sock.sendto(message.encode(), (MCAST_GROUP, MCAST_PORT))
+        sock.sendto(message, (MCAST_GROUP, MCAST_PORT))
         
         # Aguarda antes de enviar a próxima leitura de temperatura
         time.sleep(10)
