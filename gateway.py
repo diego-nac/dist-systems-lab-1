@@ -7,7 +7,6 @@ import device_pb2  # Importando o arquivo gerado a partir do device.proto
 MCAST_GROUP = '224.0.0.1'  # Endereço multicast
 MCAST_PORT = 5000          # Porta multicast
 BUFFER_SIZE = 1024         # Tamanho do buffer para leitura de mensagens
-
 # Função para parsear a informação do dispositivo a partir da mensagem multicast
 def parse_device_info(message, addr, discovered_ips, devices):
     try:
@@ -20,27 +19,27 @@ def parse_device_info(message, addr, discovered_ips, devices):
         device_port = device_data.device_port
         device_type = device_data.device_type
         state = device_data.state
-        luminosity = device_data.luminosity
-        temperature = device_data.temperature
-        temperature = round(temperature, 2)
 
         if device_type == "sensor":
             # Exibe a temperatura recebida
+            temperature = round(device_data.temperature, 2)
             print(f"Temperatura recebida de {device_id} ({device_ip}:{device_port}): {temperature}°C")
             devices[device_id] = {'ip': device_ip, 'port': device_port, 'type': 'sensor', 'temperature': temperature}
-            if device_ip not in discovered_ips:
-                print(f"Dispositivo {device_id} localizado em {device_ip}:{device_port}.")
-                discovered_ips.add(device_ip)
-            devices[device_id] = {'ip': device_ip, 'port': device_port, 'type': 'sensor', 'temperature': temperature}
-
+        
         elif device_type == "lampada":
             # Lógica para dispositivos de lâmpada
+            luminosity = device_data.luminosity
             print(f'Dispositivo {device_id} ({device_ip}:{device_port}) Estado: {state} Luminosidade: {luminosity}')
-            if device_ip not in discovered_ips:
-                print(f"Dispositivo {device_id} localizado em {device_ip}:{device_port}.")
-                discovered_ips.add(device_ip)
             devices[device_id] = {'ip': device_ip, 'port': device_port, 'type': 'lamp', 'luminosity': luminosity}
 
+        elif device_type == "sensor_presenca":
+            # Lógica para dispositivos de sensor de presença
+            print(f'Sensor de presença {device_id} ({device_ip}:{device_port}) Estado: {state}')
+            devices[device_id] = {'ip': device_ip, 'port': device_port, 'type': 'sensor_presenca', 'state': state}
+
+        if device_ip not in discovered_ips:
+            print(f"Dispositivo {device_id} localizado em {device_ip}:{device_port}.")
+            discovered_ips.add(device_ip)
 
     except Exception as e:
         print(f"Erro ao parsear a mensagem: {e}")
@@ -60,12 +59,7 @@ def multicast_receiver(devices, discovered_ips):
     while True:
         data, addr = sock.recvfrom(BUFFER_SIZE)
         print(f"Mensagem recebida de {addr}")
-        
-        # Aqui, o gateway descobre o dispositivo e armazena informações (IP, Porta, ID)
         parse_device_info(data, addr, discovered_ips, devices)
-
-import socket
-import device_pb2  # Importando a definição do Protobuf
 
 # Função para enviar comandos de controle para o dispositivo via TCP usando Protobuf
 def change_device_state(device_ip, device_port, command, lamp_id=None, luminosity=None):
@@ -136,8 +130,12 @@ def client_listener(devices):
                                 device_list += f"{device_id}: {device_info['ip']}:{device_info['port']} (Lâmpada) - Luminosidade: {device_info['luminosity']}%\n"
                             elif device_info['type'] == 'sensor':
                                 device_list += f"{device_id}: {device_info['ip']}:{device_info['port']} (Sensor de Temperatura) - Temperatura: {device_info['temperature']}°C\n"
+                            elif device_info['type'] == 'sensor_presenca':
+                                device_list += f"{device_id}: {device_info['ip']}:{device_info['port']} (Sensor de Presença) - Estado: {device_info['state']}\n"
+
                         command_response.success = True
                         command_response.message = f"Dispositivos encontrados:\n{device_list}"
+
                         
                         
                     else:
