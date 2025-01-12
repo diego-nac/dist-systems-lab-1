@@ -2,8 +2,8 @@ import socket
 import time
 import random
 import struct
-import smart_devices.device_pb2 as device_pb2  # Importando a definição do Protobuf
-from configs import *
+import .device_pb2 as device_pb2  # Importando a definição do Protobuf
+from .configs import *
 def detect_presence():
     """Função para simular a detecção de presença."""
     # Simula a presença com base em um valor aleatório
@@ -39,11 +39,8 @@ def send_presence_data(device_id, device_ip, device_port):
         # Aguarda antes de enviar a próxima leitura de presença
         time.sleep(5)
 
-def main():
-    device_id = "sensor_presenca_1"
-    device_ip = "192.168.0.12"  # IP do sensor de presença
-    device_port = 6002  # Porta onde o sensor está enviando dados
+def run_detector(device_id="sensor_presenca_1", device_ip=PRESENCE_SENSOR_IP, device_port=PRESENCE_SENSOR_PORT):
     send_presence_data(device_id, device_ip, device_port)
 
 if __name__ == "__main__":
-    main()
+    run_detector()

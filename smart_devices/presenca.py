@@ -3,8 +3,8 @@ import time
 import cv2
 import random
 import struct
-import smart_devices.device_pb2 as device_pb2
-from configs import *
+import .device_pb2 as device_pb2
+from .configs import *
 
 class PresencaSensor:
     def __init__(self, device_id, device_ip, device_port):
@@ -100,11 +100,8 @@ def send_presence_data(device_id, device_ip, device_port):
         
         time.sleep(5)
 
-def main():
-    device_id = "sensor_presenca_1"
-    device_ip = "192.168.0.12"
-    device_port = 6002
+def run_presence_sensor(device_id = 'sensor_presenca_1', device_ip = PRESENCE_SENSOR_IP, device_port = PRESENCE_SENSOR_PORT):
     send_presence_data(device_id, device_ip, device_port)
 
 if __name__ == "__main__":
-    main()
+    run_presence_sensor()

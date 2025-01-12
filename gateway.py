@@ -3,11 +3,8 @@ import struct
 import threading
 import time
 import smart_devices.device_pb2 as device_pb2  # Importando o arquivo gerado a partir do device.proto
+from smart_devices.configs import *
 
-MCAST_GROUP = '224.0.0.1'  # Endereço multicast
-MCAST_PORT = 5000          # Porta multicast
-BUFFER_SIZE = 1024         # Tamanho do buffer para leitura de mensagens
-# Função para parsear a informação do dispositivo a partir da mensagem multicast
 def parse_device_info(message, addr, discovered_ips, devices):
     try:
         # Deserializa a mensagem Protobuf
