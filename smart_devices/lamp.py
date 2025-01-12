@@ -6,7 +6,7 @@ import random
 import device_pb2 as device_pb2
 from configs import *
 
-DEVICE_TYPE = 'lâmpada'
+DEVICE_TYPE = 'lamp'
 DEVICE_STATE = 'desligada'
 LUMINOSITY = 0
 

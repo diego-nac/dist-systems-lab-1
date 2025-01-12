@@ -1,6 +1,5 @@
-
-MCAST_GROUP = '224.0.0.1'  # Endereço multicast do gateway
-MCAST_PORT = 5000          # Porta multicast do gateway
+MCAST_GROUP = '224.0.0.1'  # Endereço multicast válido
+MCAST_PORT = 5000          # Porta multicast
 SENSOR_IP = '192.168.18.37'  # Exemplo de IP para o sensor
 SENSOR_PORT = 6001
 BUFFER_SIZE = 1024
