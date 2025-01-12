@@ -66,3 +66,4 @@ class Lamp(SmartDevice):
     def __str__(self):
         state_str = "ON" if self.is_on else "OFF"
         return f"Lamp(ID: {self.id}, Name: {self.name}, State: {state_str}, Brightness: {self.brightness * 100:.0f}%, Color: {self.color}, IP: {self.ip}, Port: {self.port})"
+

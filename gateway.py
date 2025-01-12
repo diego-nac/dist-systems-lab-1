@@ -2,43 +2,64 @@ import socket
 import struct
 import threading
 import time
-
-# Parâmetros de configuração do grupo de multicast
-MCAST_GROUP = '224.0.0.1'  # Endereço multicast
-MCAST_PORT = 5000          # Porta multicast
-BUFFER_SIZE = 1024         # Tamanho do buffer para leitura de mensagens
-
+from utils import *
 # Função para parsear a informação do dispositivo a partir da mensagem multicast
 def parse_device_info(message, addr, discovered_ips, devices):
     try:
-        # Exemplo de mensagem: "Dispositivo lampada123 foi descoberto, IP: 192.168.0.10, Porta: 6000"
-        parts = message.split(',')
-        device_id = parts[0].split(' ')[1]  # Obtém o ID do dispositivo
-        device_ip = parts[1].split(':')[1].strip()  # Obtém o IP do dispositivo
-        device_port = int(parts[2].split(':')[1].strip())  # Obtém a porta do dispositivo
+        # Exemplo de mensagem: "Lamp(ID: 1, Name: Living Room Lamp, State: OFF, Brightness: 50%, Color: blue, IP: 239.0.0.2, Port: 1111)"
+        parts = [part.strip() for part in message.split(',')]
 
-        # Agora, utilizamos o IP e porta do remetente (no 'addr') como a origem da descoberta
-        sender_ip = addr[0]  # IP de quem enviou a mensagem (endereço do multicast)
-        sender_port = addr[1]  # Porta de quem enviou a mensagem
+        # Validação básica do formato da mensagem
+        if len(parts) < 7:
+            print(f"Mensagem inválida recebida: {message}")
+            return
 
-        if "Sensor" in message:
-            # Exibe a temperatura recebida
-            temperature = parts[3].split(':')[1].strip()
-            print(f"Temperatura recebida de {device_id} ({device_ip}:{device_port}): {temperature}°C")
-            devices[device_id] = {'ip': device_ip, 'port': device_port, 'type': 'sensor', 'temperature': temperature}
-        elif "Dispositivo" in message:
-            # Lógica para dispositivos de lâmpada
-            luminosity = parts[4].split(':')[1].strip()
-            if device_ip not in discovered_ips:
-                print(f"Dispositivo {device_id} localizado em {device_ip}:{device_port}.")
-                discovered_ips.add(device_ip)
-            devices[device_id] = {'ip': device_ip, 'port': device_port, 'type': 'lamp', 'luminosity': luminosity}
+        # Extrai campos obrigatórios da mensagem
+        device_id = parts[0].split(':')[1].strip()  # Ex.: "1"
+        device_name = parts[1].split(':')[1].strip()  # Ex.: "Living Room Lamp"
+        device_state = parts[2].split(':')[1].strip().upper()  # Ex.: "OFF"
+        brightness_str = parts[3].split(':')[1].replace('%', '').strip()  # Ex.: "50"
+        color = parts[4].split(':')[1].strip().lower()  # Ex.: "blue"
+        device_ip = parts[5].split(':')[1].strip()  # Ex.: "239.0.0.2"
 
+        # Corrige a extração da porta para remover caracteres extras
+        device_port_str = parts[6].split(':')[1].strip()
+        device_port = int(device_port_str.rstrip(')'))  # Remove o parêntese fechado
+
+        # Converte e valida valores
+        is_on = device_state == "ON"
+        try:
+            brightness = int(brightness_str)
+            if not (0 <= brightness <= 100):
+                raise ValueError(f"Brilho fora do intervalo: {brightness_str}")
+        except ValueError:
+            print(f"Erro ao parsear o brilho: {brightness_str}")
+            return
+
+        # Evita registrar o mesmo dispositivo múltiplas vezes
+        if device_ip not in discovered_ips:
+            print(f"Dispositivo {device_id} localizado em {device_ip}:{device_port}.")
+            discovered_ips.add(device_ip)
+
+        # Atualiza ou adiciona informações do dispositivo
+        devices[device_id] = {
+            'id': device_id,
+            'name': device_name,
+            'type': 'lamp',
+            'state': is_on,
+            'brightness': brightness,
+            'color': color,
+            'ip': device_ip,
+            'port': device_port
+        }
+        print(f"Dispositivo {device_name} ({device_id}) atualizado com sucesso.")
 
     except Exception as e:
         print(f"Erro ao parsear a mensagem: {e}")
 
-# Função para escutar as mensagens de multicast
+
+
+
 def multicast_receiver(devices, discovered_ips):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -55,10 +76,10 @@ def multicast_receiver(devices, discovered_ips):
         message = data.decode('utf-8')
         print(f"Mensagem recebida de {addr}: {message}")
 
-        # Aqui, o gateway descobre o dispositivo e armazena informações (IP, Porta, ID)
+        
         parse_device_info(message, addr, discovered_ips, devices)
 
-# Função para enviar comandos de controle para o dispositivo via TCP
+
 def change_device_state(device_ip, device_port, command):
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
