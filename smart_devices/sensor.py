@@ -2,10 +2,8 @@ import socket
 import time
 import random
 import struct
-import device_pb2  # Importando a definição do Protobuf
-
-MCAST_GROUP = '224.0.0.1'  # Endereço multicast do gateway
-MCAST_PORT = 5000          # Porta multicast do gateway
+import smart_devices.device_pb2 as device_pb2  # Importando a definição do Protobuf
+from configs import *
 
 def get_temperature():
     """Função para simular a leitura da temperatura (em °C)."""
@@ -43,11 +41,8 @@ def send_temperature_data(device_id, device_ip, device_port):
         # Aguarda antes de enviar a próxima leitura de temperatura
         time.sleep(10)
 
-def main():
-    device_id = "sensor_1"
-    device_ip = "192.168.0.11"  # IP do sensor de temperatura
-    device_port = 6001  # Porta onde o sensor está enviando dados
+def run_sensor(device_id = 'sensor_1', device_ip = SENSOR_IP, device_port = SENSOR_PORT):
     send_temperature_data(device_id, device_ip, device_port)
 
 if __name__ == "__main__":
-    main()
+    run_sensor()

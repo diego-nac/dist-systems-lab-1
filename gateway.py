@@ -2,7 +2,7 @@ import socket
 import struct
 import threading
 import time
-import device_pb2  # Importando o arquivo gerado a partir do device.proto
+import smart_devices.device_pb2 as device_pb2  # Importando o arquivo gerado a partir do device.proto
 
 MCAST_GROUP = '224.0.0.1'  # Endereço multicast
 MCAST_PORT = 5000          # Porta multicast

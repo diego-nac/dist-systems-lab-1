@@ -3,11 +3,9 @@ import struct
 import threading
 import time
 import random
-import device_pb2  # Importando a definição do Protobuf
+import smart_devices.device_pb2 as device_pb2  # Importando a definição do Protobuf
+from configs import *
 
-# Parâmetros de configuração do grupo de multicast
-MCAST_GROUP = '224.0.0.1'  # Endereço multicast
-MCAST_PORT = 5000          # Porta multicast
 DEVICE_TYPE = 'lâmpada'    # Tipo do dispositivo
 
 # Função para gerar um ID aleatório para o dispositivo

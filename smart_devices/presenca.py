@@ -3,10 +3,8 @@ import time
 import cv2
 import random
 import struct
-import device_pb2
-
-MCAST_GROUP = '224.0.0.1'  # Endereço multicast do gateway
-MCAST_PORT = 5000          # Porta multicast do gateway
+import smart_devices.device_pb2 as device_pb2
+from configs import *
 
 class PresencaSensor:
     def __init__(self, device_id, device_ip, device_port):

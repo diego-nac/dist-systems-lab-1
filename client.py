@@ -1,5 +1,5 @@
 import socket
-import device_pb2  # Importando a definição do Protobuf
+import smart_devices.device_pb2 as device_pb2  # Importando a definição do Protobuf
 
 # Função para enviar comando para o gateway
 def send_command(command):
