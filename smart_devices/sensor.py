@@ -39,7 +39,7 @@ def send_temperature_data(device_id, device_ip, device_port):
         sock.sendto(message, (MCAST_GROUP, MCAST_PORT))
         
         # Aguarda antes de enviar a próxima leitura de temperatura
-        time.sleep(10)
+        time.sleep(DELAY_DISCOVERY)
 
 def run_sensor(device_id = 'sensor_1', device_ip = SENSOR_IP, device_port = SENSOR_PORT):
     send_temperature_data(device_id, device_ip, device_port)

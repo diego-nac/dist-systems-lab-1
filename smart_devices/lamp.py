@@ -6,37 +6,9 @@ import random
 import device_pb2 as device_pb2
 from configs import *
 
-DEVICE_TYPE = 'lamp'
+DEVICE_TYPE = 'lampada'
 DEVICE_STATE = 'desligada'
 LUMINOSITY = 0
-
-# Funções auxiliares
-def generate_device_id():
-    return f"lampada{random.randint(1000, 9999)}"
-
-def generate_device_ip():
-    return f"127.0.1.{random.randint(0, 255)}"
-
-def send_discovery(device_id, device_ip, device_port):
-    try:
-        
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        group = socket.inet_aton(MCAST_GROUP)
-        mreq = struct.pack('4sL', group, socket.INADDR_ANY)
-        sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-        discovery_message = device_pb2.DeviceDiscovery(
-            device_id=device_id,
-            device_ip=device_ip,
-            device_port=device_port,
-            device_type=DEVICE_TYPE,
-            state=DEVICE_STATE,
-            luminosity=LUMINOSITY
-        )
-        message = discovery_message.SerializeToString()
-        sock.sendto(message, (MCAST_GROUP, MCAST_PORT))
-        sock.close()
-    except Exception as e:
-        print(f"Erro ao enviar mensagem de descoberta: {e}")
 
 def listen_for_commands(device_ip, device_port):
     global DEVICE_STATE, LUMINOSITY
@@ -82,13 +54,33 @@ def listen_for_commands(device_ip, device_port):
         except Exception as e:
             print(f"Erro ao processar comando: {e}")
 
-def start_lamp(device_id, device_ip, device_port):
+def send_discovery(device_id, device_ip, device_port):
     while True:
-        send_discovery(device_id, device_ip, device_port)
+        
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        group = socket.inet_aton(MCAST_GROUP)
+        mreq = struct.pack('4sL', group, socket.INADDR_ANY)
+        sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+        try:
+            discovery_message = device_pb2.DeviceDiscovery(
+                device_id=device_id,
+                device_ip=device_ip,
+                device_port=device_port,
+                device_type=DEVICE_TYPE,
+                state=DEVICE_STATE,
+                luminosity=LUMINOSITY
+            )
+            message = discovery_message.SerializeToString()
+            
+            print(f"Enviando dados para o gateway: Lamp {device_id}")
+            sock.sendto(message, (MCAST_GROUP, MCAST_PORT))
+            sock.close()
+        except Exception as e:
+            print(f"Erro ao enviar mensagem de descoberta: {e}")
         time.sleep(DELAY_DISCOVERY)
 
 def run_lamp(device_id = 'lamp_1', device_ip = LAMP_IP, device_port = LAMP_PORT):
-    threading.Thread(target=start_lamp, args=(device_id, device_ip, device_port), daemon=True).start()
+    threading.Thread(target=send_discovery, args=(device_id, device_ip, device_port), daemon=True).start()
     threading.Thread(target=listen_for_commands, args=(device_ip,device_port), daemon=True).start()
 
     try:
