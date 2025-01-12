@@ -19,8 +19,11 @@ def generate_device_ip():
 
 def send_discovery(device_id, device_ip, device_port):
     try:
+        
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 255)
+        group = socket.inet_aton(MCAST_GROUP)
+        mreq = struct.pack('4sL', group, socket.INADDR_ANY)
+        sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
         discovery_message = device_pb2.DeviceDiscovery(
             device_id=device_id,
             device_ip=device_ip,

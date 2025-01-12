@@ -47,16 +47,24 @@ def multicast_receiver(devices, discovered_ips):
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(('0.0.0.0', MCAST_PORT))
 
-    group = socket.inet_aton(MCAST_GROUP)
-    mreq = struct.pack('4sL', group, socket.INADDR_ANY)
-    sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+    # Configurando o grupo multicast para usar o IP local
+    group = socket.inet_aton(MCAST_GROUP) + socket.inet_aton(LOCAL_IP)
+    try:
+        sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, group)
+    except OSError as e:
+        print(f"Erro ao configurar multicast: {e}")
+        return
 
     print(f"Gateway aguardando mensagens de multicast em {MCAST_GROUP}:{MCAST_PORT}...")
 
     while True:
-        data, addr = sock.recvfrom(BUFFER_SIZE)
-        print(f"Mensagem recebida de {addr}")
-        parse_device_info(data, addr, discovered_ips, devices)
+        try:
+            data, addr = sock.recvfrom(BUFFER_SIZE)
+            print(f"Mensagem recebida de {addr}")
+            parse_device_info(data, addr, discovered_ips, devices)
+        except Exception as e:
+            print(f"Erro no recebimento de mensagem multicast: {e}")
+
 
 # Função para enviar comandos de controle para o dispositivo via TCP usando Protobuf
 def change_device_state(device_ip, device_port, command, lamp_id=None, luminosity=None):

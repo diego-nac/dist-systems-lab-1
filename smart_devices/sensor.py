@@ -2,8 +2,8 @@ import socket
 import time
 import random
 import struct
-import .device_pb2 as device_pb2  # Importando a definição do Protobuf
-from .configs import *
+import device_pb2 as device_pb2  # Importando a definição do Protobuf
+from configs import *
 
 def get_temperature():
     """Função para simular a leitura da temperatura (em °C)."""
