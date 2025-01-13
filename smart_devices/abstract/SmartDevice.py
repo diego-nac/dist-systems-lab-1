@@ -1,6 +1,5 @@
 import socket
 import time
-import struct
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 import smart_devices.proto.smart_devices_pb2 as proto
@@ -108,7 +107,8 @@ class SmartDevice(ABC):
         """
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 255)
-        sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(self.ip))
+        sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(LOCAL_IP))
+
 
         while True:
             try:
