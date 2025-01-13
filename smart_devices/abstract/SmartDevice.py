@@ -3,7 +3,7 @@ import time
 import struct
 from abc import ABC, abstractmethod
 from typing import Dict, Any
-from smart_devices.proto.smart_devices_pb2 import smart_devices_pb2 as proto
+import smart_devices.proto.smart_devices_pb2 as proto
 from utils import *
 
 
