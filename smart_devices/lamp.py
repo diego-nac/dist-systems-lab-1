@@ -9,15 +9,18 @@ DEVICE_TYPE = 'lampada'
 DEVICE_STATE = 'desligada'
 LUMINOSITY = 0
 
+
 def listen_for_commands(device_ip, device_port):
     global DEVICE_STATE, LUMINOSITY
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind(('0.0.0.0', device_port))
     server_socket.listen(5)
+    print(f"Servidor TCP da lâmpada ouvindo em {device_ip}:{device_port}")
 
     while True:
         try:
             client_socket, client_address = server_socket.accept()
+            print(f"Conexão recebida de {client_address}")
             data = client_socket.recv(1024)
             if data:
                 device_command = device_pb2.DeviceCommand()
@@ -53,13 +56,14 @@ def listen_for_commands(device_ip, device_port):
         except Exception as e:
             print(f"Erro ao processar comando: {e}")
 
+
 def send_discovery(device_id, device_ip):
-    while True:
-        
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        group = socket.inet_aton(MCAST_GROUP)
-        mreq = struct.pack('4sL', group, socket.INADDR_ANY)
-        sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+    
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 255)  # Configura o TTL para multicast
+    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(LOCAL_IP))  # Define a interface local
+
+    while True:   
         try:
             discovery_message = device_pb2.DeviceDiscovery(
                 device_id=device_id,
@@ -73,7 +77,6 @@ def send_discovery(device_id, device_ip):
             
             print(f"Enviando dados para o gateway: Lamp {device_id}")
             sock.sendto(message, (MCAST_GROUP, MCAST_PORT))
-            sock.close()
         except Exception as e:
             print(f"Erro ao enviar mensagem de descoberta: {e}")
         time.sleep(DELAY_DISCOVERY)
