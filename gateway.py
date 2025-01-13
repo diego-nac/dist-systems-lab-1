@@ -1,5 +1,4 @@
 import socket
-import struct
 import threading
 import time
 import smart_devices.device_pb2 as device_pb2  # Importando o arquivo gerado a partir do device.proto

@@ -2,7 +2,6 @@ import socket
 import struct
 import threading
 import time
-import random
 import device_pb2 as device_pb2
 from configs import *
 
@@ -54,7 +53,7 @@ def listen_for_commands(device_ip, device_port):
         except Exception as e:
             print(f"Erro ao processar comando: {e}")
 
-def send_discovery(device_id, device_ip, device_port):
+def send_discovery(device_id, device_ip):
     while True:
         
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -65,7 +64,7 @@ def send_discovery(device_id, device_ip, device_port):
             discovery_message = device_pb2.DeviceDiscovery(
                 device_id=device_id,
                 device_ip=device_ip,
-                device_port=device_port,
+                device_port=LAMP_PORT,
                 device_type=DEVICE_TYPE,
                 state=DEVICE_STATE,
                 luminosity=LUMINOSITY
@@ -80,7 +79,7 @@ def send_discovery(device_id, device_ip, device_port):
         time.sleep(DELAY_DISCOVERY)
 
 def run_lamp(device_id = 'lamp_1', device_ip = LAMP_IP, device_port = LAMP_PORT):
-    threading.Thread(target=send_discovery, args=(device_id, device_ip, device_port), daemon=True).start()
+    threading.Thread(target=send_discovery, args=(device_id, device_ip), daemon=True).start()
     threading.Thread(target=listen_for_commands, args=(device_ip,device_port), daemon=True).start()
 
     try:
