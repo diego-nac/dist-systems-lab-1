@@ -118,7 +118,6 @@ class SmartDevice(ABC):
             except Exception as e:
                 logger.error(f"Erro ao enviar estado do dispositivo {self.id}: {e}")
             time.sleep(DISCOVERY_DELAY)
-
     def listen_for_commands(self):
         """
         Escuta e processa comandos recebidos via TCP.
@@ -141,11 +140,14 @@ class SmartDevice(ABC):
 
                     logger.info(f"Comando recebido: {device_command.command}")
 
-                    # Processar o comando
-                    response_message = self.process_command(device_command.command)
+                    # Passar o objeto DeviceCommand para o método process_command
+                    response_message = self.process_command(device_command)
 
                     # Criar e enviar a resposta
-                    command_response = proto.CommandResponse(message=response_message)
+                    command_response = proto.CommandResponse(
+                        success=True if "ON" in response_message or "OFF" in response_message else False,
+                        message=response_message
+                    )
                     client_socket.sendall(command_response.SerializeToString())
 
                 client_socket.close()

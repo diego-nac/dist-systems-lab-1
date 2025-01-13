@@ -58,13 +58,12 @@ class Lamp(SmartDevice):
         self._is_on = value
         state = "ON" if value else "OFF"
         logger.info(f"Lamp({self.id}:{self.name}) turned {state}.")
-
-    def process_command(self, command: str):
-        parts = command.lower().split()
-        if len(parts) == 0:
-            return "Invalid command."
-
-        action = parts[0]
+        
+    def process_command(self, device_command: proto.DeviceCommand):
+        """
+        Processa comandos recebidos no formato Protobuf.
+        """
+        action = device_command.command.lower()
 
         if action == "ligar":
             self.is_on = True
@@ -74,24 +73,29 @@ class Lamp(SmartDevice):
             self.is_on = False
             return f"Lamp {self.name} is now OFF."
 
-        elif action == "ajustar" and len(parts) > 2 and parts[1] == "brilho":
+        elif action == "luminosidade":
             try:
-                brightness = float(parts[2])
-                self.brightness = brightness  # Uses the setter
-                return f"Brightness of lamp {self.name} adjusted to {self.brightness * 100:.0f}%"
+                brightness = device_command.brightness
+                if 0.0 <= brightness <= 100.0:
+                    self.brightness = brightness / 100  # Normaliza para 0.0-1.0
+                    return f"Brightness of lamp {self.name} adjusted to {self.brightness * 100:.0f}%"
+                else:
+                    return "Brightness value must be between 0 and 100."
             except ValueError:
                 return "Invalid brightness value."
 
-        elif action == "alterar" and len(parts) > 1 and parts[1] == "cor":
-            if len(parts) > 2:
-                color = parts[2]
-                self.color = color  # Uses the setter
-                return f"Lamp {self.name} color changed to {self.color}."
+        elif action == "alterar cor":
+            color = device_command.color
+            if color in self.VALID_COLORS:
+                self.color = color
+                return f"Color of lamp {self.name} changed to {self.color}."
             else:
-                return "Please specify a color."
+                return f"Invalid color '{color}'."
 
         else:
             return "Invalid command for lamp."
+
+
 
     def show_commands(self):
         logger.info(f"Commands for Lamp({self.id}:{self.name}): {', '.join(self.commands)}")

@@ -159,7 +159,7 @@ class Gateway:
                             lista = ""
                             for dev_id, dev_info in self.devices.items():
                                 tipo = dev_info.get('type', 'desconhecido')
-                                lista += f"{dev_id} => Tipo: {tipo} | IP: {dev_info['ip']}:{dev_info['port']}\n"
+                                lista += f"{dev_id} => Tipo: {tipo} | {dev_info}\n"
                             command_response.success = True
                             command_response.message = f"Dispositivos:\n{lista}"
                         else:
