@@ -1,9 +1,11 @@
-from abc import ABC, abstractmethod
-from typing import Dict, Any
 import socket
 import time
 import struct
+from abc import ABC, abstractmethod
+from typing import Dict, Any
+from smart_devices.proto.smart_devices_pb2 import smart_devices_pb2 as proto
 from utils import *
+
 
 class SmartDevice(ABC):
     """
@@ -12,16 +14,6 @@ class SmartDevice(ABC):
     """
 
     def __init__(self, device_id: str, device_name: str, device_type: str, is_on: bool, device_ip: str, device_port: int):
-        """
-        Inicializa o dispositivo inteligente.
-
-        :param device_id: ID único do dispositivo.
-        :param device_name: Nome do dispositivo.
-        :param device_type: Tipo do dispositivo (e.g., "Lamp", "AirConditioner").
-        :param is_on: Estado inicial do dispositivo como um dicionário.
-        :param device_ip: IP do dispositivo.
-        :param device_port: Porta do dispositivo.
-        """
         self._id = device_id
         self._name = device_name
         self._type = device_type
@@ -81,18 +73,10 @@ class SmartDevice(ABC):
     def process_command(self, command: str):
         """
         Método abstrato para processar comandos enviados ao dispositivo.
-
-        :param command: Um dicionário representando o comando.
-        :return: Um dicionário com o resultado da execução do comando.
         """
         pass
 
     def info(self) -> Dict[str, Any]:
-        """
-        Retorna informações básicas sobre o dispositivo para descoberta.
-
-        :return: Um dicionário com o ID, nome, tipo e estado inicial do dispositivo.
-        """
         return {
             "device_id": self._id,
             "device_name": self._name,
@@ -103,33 +87,76 @@ class SmartDevice(ABC):
         }
 
     def toggle_is_on(self) -> None:
-        """
-        Atualiza o estado do dispositivo.
-
-        :param key: A chave do estado a ser atualizada.
-        :param value: O novo valor do estado.
-        """
         self._is_on = not self._is_on
+
+    def to_proto(self) -> proto.DeviceDiscovery:
+        """
+        Serializa o estado do dispositivo em uma mensagem Protobuf.
+        """
+        return proto.DeviceDiscovery(
+            device_id=self.id,
+            device_name=self.name,
+            device_ip=self.ip,
+            device_port=self.port,
+            device_type=self.type,
+            is_on=self.is_on
+        )
 
     def start(self):
         """
-        Método para iniciar o dispositivo e enviar periodicamente seu estado via socket multicast.
+        Inicia o dispositivo e envia periodicamente seu estado via socket multicast.
         """
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        group = socket.inet_aton(MCAST_GROUP)
-        mreq = struct.pack('4sL', group, socket.INADDR_ANY)
-        sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+        sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 255)
+        sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(self.ip))
 
         while True:
-            message = self.__str__()
-            logger.info(f".")
-            sock.sendto(message.encode(), (MCAST_GROUP, MCAST_PORT))
-            time.sleep(1)
+            try:
+                message = self.to_proto().SerializeToString()
+                logger.info(f"Enviando estado do dispositivo {self.id} para {MCAST_GROUP}:{MCAST_PORT}")
+                sock.sendto(message, (MCAST_GROUP, MCAST_PORT))
+            except Exception as e:
+                logger.error(f"Erro ao enviar estado do dispositivo {self.id}: {e}")
+            time.sleep(DISCOVERY_DELAY)
+
+    def listen_for_commands(self):
+        """
+        Escuta e processa comandos recebidos via TCP.
+        """
+        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_socket.bind(('0.0.0.0', self.port))
+        server_socket.listen(5)
+        logger.info(f"Dispositivo {self.name} está aguardando conexões TCP na porta {self.port}...")
+
+        while True:
+            try:
+                client_socket, client_address = server_socket.accept()
+                logger.info(f"Conexão recebida de {client_address}")
+
+                # Receber e desserializar o comando
+                data = client_socket.recv(1024)
+                if data:
+                    device_command = proto.DeviceCommand()
+                    device_command.ParseFromString(data)
+
+                    logger.info(f"Comando recebido: {device_command.command}")
+
+                    # Processar o comando
+                    response_message = self.process_command(device_command.command)
+
+                    # Criar e enviar a resposta
+                    command_response = proto.CommandResponse(message=response_message)
+                    client_socket.sendall(command_response.SerializeToString())
+
+                client_socket.close()
+            except socket.error as e:
+                logger.error(f"Erro de socket: {e}")
+            except Exception as e:
+                logger.error(f"Erro ao processar comando: {e}")
 
     def __str__(self):
         """
         Representação textual do dispositivo.
-
-        :return: Uma string representando o dispositivo.
         """
-        return f"SmartDevice(ID: {self._id}, Name: {self._name}, Type: {self._type}, Is On: {self._is_on}, IP: {self._ip}, Port: {self._port})"
+        state_str = "ON" if self.is_on else "OFF"
+        return f"SmartDevice(ID: {self._id}, Name: {self._name}, Type: {self._type}, State: {state_str}, IP: {self._ip}, Port: {self._port})"

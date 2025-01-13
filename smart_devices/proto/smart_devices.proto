@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package smart_devices;
+
+// Mensagem genérica para um dispositivo inteligente
+message SmartDevice {
+  string device_id = 1;    // ID único do dispositivo
+  string device_name = 2;  // Nome do dispositivo
+  string device_type = 3;  // Tipo do dispositivo (e.g., Lamp, Sensor)
+  bool is_on = 4;          // Estado ligado/desligado
+  string device_ip = 5;    // IP do dispositivo
+  int32 device_port = 6;   // Porta do dispositivo
+}
+
+// Mensagem para representar uma lâmpada
+message Lamp {
+  string device_id = 1;    // ID da lâmpada
+  bool is_on = 2;          // Estado ligado/desligado
+  float brightness = 3;    // Nível de brilho (0.0 - 1.0)
+  string color = 4;        // Cor atual
+}
+
+// Mensagem para comandos enviados ao dispositivo
+message DeviceCommand {
+  string device_id = 1;      // ID do dispositivo alvo
+  string command = 2;        // Comando enviado (e.g., "ligar", "desligar")
+  float brightness = 3;      // Nível de brilho (para lâmpadas)
+  string color = 4;          // Cor desejada (para lâmpadas)
+}
+
+// Mensagem para resposta de comandos
+message CommandResponse {
+  bool success = 1;          // Indica se o comando foi bem-sucedido
+  string message = 2;        // Mensagem de resposta (e.g., erro ou confirmação)
+}
+
+message DeviceDiscovery {
+  string device_id = 1;
+  string device_name = 2;
+  string device_type = 3;
+  bool is_on = 4;
+  float brightness = 5;
+  string color = 6;
+  string device_ip = 7;
+  int32 device_port = 8;
+}
+
+
+// Serviço para gerenciar dispositivos inteligentes
+service SmartDeviceService {
+  rpc SendCommand (DeviceCommand) returns (CommandResponse);
+  rpc DiscoverDevices (DeviceDiscovery) returns (CommandResponse);
+}
