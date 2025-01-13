@@ -23,9 +23,10 @@ message Lamp {
 // Mensagem para comandos enviados ao dispositivo
 message DeviceCommand {
   string device_id = 1;      // ID do dispositivo alvo
-  string command = 2;        // Comando enviado (e.g., "ligar", "desligar")
+  string command = 2;        // Comando enviado (e.g., "ligar", "desligar", "alterar cor")
   float brightness = 3;      // Nível de brilho (para lâmpadas)
   string color = 4;          // Cor desejada (para lâmpadas)
+  map<string, string> parameters = 5; // Parâmetros adicionais para comandos personalizados
 }
 
 // Mensagem para resposta de comandos
@@ -34,6 +35,7 @@ message CommandResponse {
   string message = 2;        // Mensagem de resposta (e.g., erro ou confirmação)
 }
 
+// Mensagem para descoberta de dispositivos
 message DeviceDiscovery {
   string device_id = 1;
   string device_name = 2;
@@ -44,7 +46,6 @@ message DeviceDiscovery {
   string device_ip = 7;
   int32 device_port = 8;
 }
-
 
 // Serviço para gerenciar dispositivos inteligentes
 service SmartDeviceService {
