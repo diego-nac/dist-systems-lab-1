@@ -1,10 +1,10 @@
+from threading import Thread
 import socket
 import time
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 import smart_devices.proto.smart_devices_pb2 as proto
 from utils import *
-
 
 class SmartDevice(ABC):
     """
@@ -19,6 +19,7 @@ class SmartDevice(ABC):
         self._is_on = is_on
         self._ip = device_ip
         self._port = device_port
+        self.tcp_connected = False  # Define se há uma conexão TCP ativa
 
     @property
     def id(self) -> str:
@@ -69,7 +70,7 @@ class SmartDevice(ABC):
         self._port = value
 
     @abstractmethod
-    def process_command(self, command: str):
+    def process_command(self, command: proto.DeviceCommand):
         """
         Método abstrato para processar comandos enviados ao dispositivo.
         """
@@ -101,23 +102,89 @@ class SmartDevice(ABC):
             is_on=self.is_on
         )
 
-    def start(self):
+    def start_multicast(self):
         """
-        Inicia o dispositivo e envia periodicamente seu estado via socket multicast.
+        Envia periodicamente o estado do dispositivo via socket multicast.
         """
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 255)
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(LOCAL_IP))
 
-
-        while True:
+        while not self.tcp_connected:
             try:
                 message = self.to_proto().SerializeToString()
                 logger.info(f"Enviando estado do dispositivo {self.id} para {MCAST_GROUP}:{MCAST_PORT}")
                 sock.sendto(message, (MCAST_GROUP, MCAST_PORT))
+                time.sleep(DISCOVERY_DELAY)
             except Exception as e:
                 logger.error(f"Erro ao enviar estado do dispositivo {self.id}: {e}")
-            time.sleep(DISCOVERY_DELAY)
+
+        logger.info("Multicast interrompido: conexão TCP estabelecida.")
+
+    def listen_for_commands(self):
+        """
+        Escuta e processa comandos recebidos via TCP.
+        """
+        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_socket.bind(('0.0.0.0', self.port))
+        server_socket.listen(1)  # Aceita apenas uma conexão ativa
+        logger.info(f"Dispositivo {self.name} aguardando conexões TCP na porta {self.port}...")
+
+        while True:
+            client_socket, client_address = server_socket.accept()
+            self.tcp_connected = True  # Marca que há uma conexão TCP ativa
+            logger.info(f"Conexão TCP estabelecida com {client_address}")
+
+            while True:
+                try:
+                    data = client_socket.recv(1024)
+                    if not data:
+                        logger.info("Conexão TCP encerrada pelo cliente.")
+                        self.tcp_connected = False
+                        break
+
+                    device_command = proto.DeviceCommand()
+                    device_command.ParseFromString(data)
+                    logger.info(f"Comando recebido: {device_command.command}")
+
+                    response_message = self.process_command(device_command)
+
+                    command_response = proto.CommandResponse(
+                        success=True if "ON" in response_message or "OFF" in response_message else False,
+                        message=response_message
+                    )
+                    client_socket.sendall(command_response.SerializeToString())
+                except socket.error as e:
+                    logger.error(f"Erro de socket: {e}")
+                    self.tcp_connected = False
+                    break
+                except Exception as e:
+                    logger.error(f"Erro ao processar comando: {e}")
+                    self.tcp_connected = False
+                    break
+
+            client_socket.close()
+
+    def start(self):
+        """
+        Inicia o dispositivo em duas threads:
+        - Uma para enviar estado via multicast.
+        - Outra para escutar comandos via TCP.
+        """
+        logger.info(f"Iniciando dispositivo {self.name} ({self.type})...")
+        multicast_thread = Thread(target=self.start_multicast, daemon=True)
+        tcp_listener_thread = Thread(target=self.listen_for_commands, daemon=True)
+
+        multicast_thread.start()
+        tcp_listener_thread.start()
+
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            logger.info("Dispositivo interrompido pelo usuário.")
+
+
     def listen_for_commands(self):
         """
         Escuta e processa comandos recebidos via TCP.
