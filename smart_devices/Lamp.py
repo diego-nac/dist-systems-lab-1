@@ -1,6 +1,7 @@
 from smart_devices.abstract.SmartDevice import SmartDevice
 from utils import *
 import smart_devices.proto.smart_devices_pb2 as proto  # Importação do Protobuf
+from threading import Thread
 
 class Lamp(SmartDevice):
     VALID_COLORS = {"white", "red", "blue", "green", "yellow", "purple", "orange"}
@@ -21,7 +22,7 @@ class Lamp(SmartDevice):
     def _validate_color(self, color: str) -> str:
         if color.lower() in self.VALID_COLORS:
             return color.lower()
-        logger.warning(f"Invalid color '{color}'. Defaulting to 'white'.")
+        logger.warning(f"Cor inválida '{color}'. Usando 'white' como padrão.")
         return "white"
 
     # Getter and Setter for Brightness
@@ -33,9 +34,9 @@ class Lamp(SmartDevice):
     def brightness(self, value: float):
         if 0.0 <= value <= 1.0:
             self._brightness = value
-            logger.info(f"Brightness set to {self._brightness * 100:.0f}% for Lamp({self.id}:{self.name}).")
+            logger.info(f"Brilho ajustado para {self._brightness * 100:.0f}% na Lâmpada ({self.id}:{self.name}).")
         else:
-            logger.warning("Brightness value must be between 0.0 and 1.0.")
+            logger.warning("O valor de brilho deve estar entre 0.0 e 1.0.")
 
     # Getter and Setter for Color
     @property
@@ -46,7 +47,7 @@ class Lamp(SmartDevice):
     def color(self, value: str):
         validated_color = self._validate_color(value)
         self._color = validated_color
-        logger.info(f"Color set to {self._color} for Lamp({self.id}:{self.name}).")
+        logger.info(f"Cor ajustada para {self._color} na Lâmpada ({self.id}:{self.name}).")
 
     # Getter and Setter for On/Off State
     @property
@@ -57,54 +58,56 @@ class Lamp(SmartDevice):
     def is_on(self, value: bool):
         self._is_on = value
         state = "ON" if value else "OFF"
-        logger.info(f"Lamp({self.id}:{self.name}) turned {state}.")
-        
+        logger.info(f"Lâmpada ({self.id}:{self.name}) foi {state}.")
     def process_command(self, device_command: proto.DeviceCommand):
         """
-        Processa comandos recebidos no formato Protobuf.
+        Processa comandos recebidos no formato Protobuf e reinicia o envio do estado do dispositivo.
         """
         action = device_command.command.lower()
 
         if action == "ligar":
             self.is_on = True
-            return f"Lamp {self.name} is now ON."
+            Thread(target=self.start_multicast, daemon=True).start()
+            return f"Lâmpada {self.name} agora está LIGADA."
 
         elif action == "desligar":
             self.is_on = False
-            return f"Lamp {self.name} is now OFF."
+            Thread(target=self.start_multicast, daemon=True).start()
+            return f"Lâmpada {self.name} agora está DESLIGADA."
 
         elif action == "luminosidade":
             try:
                 brightness = device_command.brightness
                 if 0.0 <= brightness <= 100.0:
                     self.brightness = brightness / 100  # Normaliza para 0.0-1.0
-                    return f"Brightness of lamp {self.name} adjusted to {self.brightness * 100:.0f}%"
+                    logger.info(f"Luminosidade ajustada para {self.brightness * 100:.0f}% na lâmpada {self.name}.")
+                    Thread(target=self.start_multicast, daemon=True).start()
+                    return f"Brilho da lâmpada {self.name} ajustado para {self.brightness * 100:.0f}%"
                 else:
-                    return "Brightness value must be between 0 and 100."
+                    return "O valor de brilho deve estar entre 0 e 100."
             except ValueError:
-                return "Invalid brightness value."
+                return "Valor de brilho inválido."
 
         elif action == "alterar cor":
             color = device_command.color
-            if color in self.VALID_COLORS:
-                self.color = color
-                return f"Color of lamp {self.name} changed to {self.color}."
+            if color.lower() in self.VALID_COLORS:
+                self.color = color.lower()
+                logger.info(f"Cor alterada para {self.color} na lâmpada {self.name}.")
+                Thread(target=self.start_multicast, daemon=True).start()
+                return f"Cor da lâmpada {self.name} alterada para {self.color}."
             else:
-                return f"Invalid color '{color}'."
+                return f"Cor inválida '{color}'."
 
         else:
-            return "Invalid command for lamp."
-
-
-
+            return "Comando inválido para a lâmpada."
     def show_commands(self):
-        logger.info(f"Commands for Lamp({self.id}:{self.name}): {', '.join(self.commands)}")
+        logger.info(f"Comandos disponíveis para Lâmpada ({self.id}:{self.name}): {', '.join(self.commands)}")
 
     def to_proto(self) -> proto.DeviceDiscovery:
         """
         Serializa o estado da lâmpada em uma mensagem Protobuf.
         """
-        return proto.DeviceDiscovery(
+        proto_message = proto.DeviceDiscovery(
             device_id=self.id,
             device_name=self.name,
             device_type=self.type,
@@ -114,6 +117,8 @@ class Lamp(SmartDevice):
             device_ip=self.ip,
             device_port=self.port
         )
+        logger.info(f"Mensagem Protobuf gerada: {proto_message}")
+        return proto_message
 
     def __str__(self):
         state_str = "ON" if self.is_on else "OFF"

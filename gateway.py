@@ -2,238 +2,193 @@ import socket
 import struct
 import threading
 import time
-import smart_devices.proto.smart_devices_pb2 as device_pb2
-from utils import *
+import smart_devices.proto.smart_devices_pb2 as proto  # Arquivo gerado a partir do Protobuf
+from utils.configs import *  # Configurações compartilhadas
 
-class Gateway:
-    def __init__(self, tcp_host='localhost', tcp_port=7000):
-        """
-        Inicializa o gateway, que gerencia dispositivos descobertos e comandos de cliente.
-        
-        :param tcp_host: Host/IP no qual o gateway escuta comandos via TCP.
-        :param tcp_port: Porta na qual o gateway escuta comandos via TCP.
-        """
-        self.tcp_host = tcp_host
-        self.tcp_port = tcp_port
-        
-        # Dicionário para armazenar informações dos dispositivos descobertos
-        # Ex: devices[device_id] = {
-        #       'ip': <str>,
-        #       'port': <int>,
-        #       'type': <str>,
-        #       'luminosity': <int> ou 'temperature': <float>, etc.
-        #    }
-        self.devices = {}
-        
-        # Conjunto para armazenar IPs já descobertos (evitar repetição de logs)
-        self.discovered_ips = set()
+def parse_device_info(message, addr, discovered_ips, devices):
+    """
+    Desserializa e processa a mensagem de descoberta de dispositivos usando Protobuf.
+    """
+    try:
+        # Deserializa a mensagem Protobuf
+        device_data = proto.DeviceDiscovery()
+        device_data.ParseFromString(message)
 
-    def parse_device_info(self, message, addr):
-        """
-        Desserializa e processa a mensagem multicast de descoberta do dispositivo.
-        """
+        device_id = device_data.device_id
+        device_name = device_data.device_name
+        device_type = device_data.device_type
+        is_on = device_data.is_on
+        brightness = device_data.brightness
+        color = device_data.color
+        device_ip = device_data.device_ip
+        device_port = device_data.device_port
+
+        # Atualiza informações do dispositivo no dicionário
+        devices[device_id] = {
+            'device_id': device_id,
+            'device_name': device_name,
+            'device_type': device_type,
+            'is_on': is_on,
+            'brightness': brightness,
+            'color': color,
+            'device_ip': device_ip,
+            'device_port': device_port
+        }
+
+        # Log detalhado sobre o dispositivo descoberto
+        if device_id not in discovered_ips:
+            discovered_ips.add(device_id)
+            print(f"Novo dispositivo descoberto:")
+            print(f" - ID: {device_id}")
+            print(f" - Nome: {device_name}")
+            print(f" - Tipo: {device_type}")
+            print(f" - Estado: {'ON' if is_on else 'OFF'}")
+            if device_type.lower() == "lamp":
+                print(f" - Brilho: {brightness * 100:.1f}%")
+                print(f" - Cor: {color}")
+            print(f" - IP: {device_ip}")
+            print(f" - Porta: {device_port}")
+
+    except Exception as e:
+        print(f"Erro ao parsear a mensagem: {e}")
+
+def multicast_receiver(devices, discovered_ips):
+    """
+    Escuta mensagens multicast enviadas pelos dispositivos.
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(('0.0.0.0', MCAST_PORT))
+
+    group = socket.inet_aton(MCAST_GROUP) + socket.inet_aton(LOCAL_IP)
+    try:
+        sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, group)
+    except OSError as e:
+        print(f"Erro ao configurar multicast: {e}")
+        return
+
+    print(f"Gateway aguardando mensagens de multicast em {MCAST_GROUP}:{MCAST_PORT}...")
+
+    while True:
         try:
-            device_data = device_pb2.DeviceDiscovery()
-            device_data.ParseFromString(message)
-
-            device_id   = device_data.device_id
-            device_ip   = device_data.device_ip
-            device_port = device_data.device_port
-            device_type = device_data.device_type
-            is_on       = device_data.is_on
-
-            # Lógica de armazenamento (exemplos de campos específicos):
-            if device_type.lower() == "sensor":
-                temperature = round(device_data.brightness, 2)  # Exemplo: se brightness fosse algo como "temperatura"
-                logger.info(f"Sensor de temperatura {device_id} => {temperature}°C")
-                self.devices[device_id] = {
-                    'ip': device_ip,
-                    'port': device_port,
-                    'type': 'sensor',
-                    'temperature': temperature
-                }
-
-            elif device_type.lower() == "lamp" or device_type.lower() == "lampada":
-                luminosity = round(device_data.brightness, 2)
-                logger.info(f"Lâmpada {device_id} => Estado: {'ON' if is_on else 'OFF'} | Luminosidade: {luminosity}%")
-                self.devices[device_id] = {
-                    'ip': device_ip,
-                    'port': device_port,
-                    'type': 'lamp',
-                    'luminosity': luminosity,
-                    'state': 'ligada' if is_on else 'desligada'
-                }
-
-            else:
-                logger.info(f"Dispositivo {device_id} do tipo '{device_type}' descoberto.")
-                # Armazena genericamente
-                self.devices[device_id] = {
-                    'ip': device_ip,
-                    'port': device_port,
-                    'type': device_type,
-                    'is_on': is_on
-                }
-
-            # Log de descoberta
-            if device_ip not in self.discovered_ips:
-                logger.info(f"Dispositivo {device_id} localizado em {device_ip}:{device_port}")
-                self.discovered_ips.add(device_ip)
-
-        except Exception as e:
-            logger.info(f"Erro ao parsear a mensagem: {e}")
-
-    def multicast_receiver(self):
-        """
-        Escuta as mensagens de multicast enviadas pelos dispositivos.
-        """
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind(('0.0.0.0', MCAST_PORT))
-
-        group = socket.inet_aton(MCAST_GROUP)
-        mreq = struct.pack('4sL', group, socket.INADDR_ANY)
-        sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-
-        logger.info(f"Aguardando mensagens de multicast em {MCAST_GROUP}:{MCAST_PORT}...")
-
-        while True:
             data, addr = sock.recvfrom(BUFFER_SIZE)
-            logger.info(f"Mensagem recebida de {addr}")
-            self.parse_device_info(data, addr)
+            print(f"Mensagem recebida de {addr}")
+            parse_device_info(data, addr, discovered_ips, devices)
+        except Exception as e:
+            print(f"Erro no recebimento de mensagem multicast: {e}")
 
-    def change_device_state(self, device_ip, device_port, command, lamp_id=None, luminosity=None):
-        """
-        Envia um comando TCP (Protobuf) a um dispositivo para mudar estado ou ajustar luminosidade.
-        """
+def change_device_state(device_ip, device_port, command, device_id=None, luminosity=None):
+    """
+    Envia comando TCP para um dispositivo usando Protobuf.
+    """
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
+            client_socket.connect((device_ip, device_port))
+            print(f"Conectado ao dispositivo {device_ip}:{device_port}. Enviando comando: {command}")
+
+            device_command = proto.DeviceCommand()
+            device_command.command = command
+            if device_id:
+                device_command.device_id = device_id
+            if luminosity is not None:
+                device_command.luminosity = luminosity
+
+            client_socket.sendall(device_command.SerializeToString())
+
+            response = client_socket.recv(1024)
+            command_response = proto.CommandResponse()
+            command_response.ParseFromString(response)
+
+            print(f"Resposta do dispositivo: {command_response.message}")
+
+    except Exception as e:
+        print(f"Erro ao enviar comando para o dispositivo {device_ip}:{device_port}: {e}")
+        
+def client_listener(devices):
+    """
+    Escuta comandos de cliente (via TCP) para controlar dispositivos.
+    """
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.bind(('localhost', 7000))
+    server_socket.listen(5)
+    print("Gateway aguardando comandos do cliente na porta 7000...")
+
+    while True:
+        client_socket, client_address = server_socket.accept()
+        print(f"Conexão recebida de {client_address}")
+
         try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
-                client_socket.connect((device_ip, device_port))
-                logger.info(f"Conectado ao dispositivo {device_ip}:{device_port}. Comando: {command}")
+            command_data = client_socket.recv(1024)
+            if command_data:
+                device_command = proto.DeviceCommand()
+                device_command.ParseFromString(command_data)
 
-                # Monta a mensagem Protobuf
-                device_command = device_pb2.DeviceCommand()
-                device_command.command = command
-                if lamp_id:
-                    device_command.device_id = lamp_id
-                if luminosity is not None:
-                    device_command.brightness = float(luminosity)
-
-                # Serializa e envia
-                message = device_command.SerializeToString()
-                client_socket.sendall(message)
-
-                # Recebe resposta
-                response = client_socket.recv(1024)
-                command_response = device_pb2.CommandResponse()
-                command_response.ParseFromString(response)
-                logger.info(f"Resposta do dispositivo: {command_response.message}")
-
-        except (socket.timeout, socket.error) as e:
-            logger.info(f"Erro ao conectar {device_ip}:{device_port}. Erro: {e}")
-
-    def client_listener(self):
-        """
-        Escuta comandos de cliente (via TCP) e processa-os para controlar os dispositivos.
-        """
-        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_socket.bind((self.tcp_host, self.tcp_port))
-        server_socket.listen(5)
-        logger.info(f"Aguardando comandos do cliente em {self.tcp_host}:{self.tcp_port}...")
-
-        while True:
-            client_socket, client_address = server_socket.accept()
-            logger.info(f"Conexão recebida de {client_address}")
-
-            data = client_socket.recv(1024)
-            if data:
-                try:
-                    device_command = device_pb2.DeviceCommand()
-                    device_command.ParseFromString(data)
-
-                    logger.info(f"Comando recebido do cliente: {device_command.command}")
-
-                    command_response = device_pb2.CommandResponse(success=False, message="")
-
-                    if device_command.command.lower() == 'listar dispositivos':
-                        if self.devices:
-                            lista = ""
-                            for dev_id, dev_info in self.devices.items():
-                                tipo = dev_info.get('type', 'desconhecido')
-                                lista += f"{dev_id} => Tipo: {tipo} | {dev_info}\n"
-                            command_response.success = True
-                            command_response.message = f"Dispositivos:\n{lista}"
-                        else:
-                            command_response.message = "Nenhum dispositivo encontrado."
-
-                    elif device_command.command.lower() in ['ligar', 'desligar']:
-                        # Liga ou desliga a lâmpada
-                        dev_id = device_command.device_id
-                        if dev_id in self.devices:
-                            dev_ip = self.devices[dev_id]['ip']
-                            dev_port = self.devices[dev_id]['port']
-                            # dispara thread para envio do comando
-                            threading.Thread(
-                                target=self.change_device_state,
-                                args=(dev_ip, dev_port, device_command.command, dev_id)
-                            ).start()
-                            command_response.success = True
-                            command_response.message = f"Comando '{device_command.command}' enviado para {dev_id}"
-                        else:
-                            command_response.message = f"Dispositivo '{dev_id}' não encontrado."
-
-                    elif device_command.command.lower() == 'luminosidade':
-                        dev_id = device_command.device_id
-                        luminosity_value = device_command.brightness
-                        if dev_id in self.devices:
-                            if 0 <= luminosity_value <= 100:
-                                dev_ip = self.devices[dev_id]['ip']
-                                dev_port = self.devices[dev_id]['port']
-                                # Atualiza local e manda o comando
-                                self.devices[dev_id]['luminosity'] = luminosity_value
-                                threading.Thread(
-                                    target=self.change_device_state,
-                                    args=(dev_ip, dev_port, "luminosidade", dev_id, luminosity_value)
-                                ).start()
-                                command_response.success = True
-                                command_response.message = f"Luminosidade de {dev_id} ajustada para {luminosity_value}%."
-                            else:
-                                command_response.message = f"Valor de luminosidade inválido. Use 0 a 100."
-                        else:
-                            command_response.message = f"Dispositivo '{dev_id}' não encontrado."
-
-                    else:
-                        command_response.message = f"Comando '{device_command.command}' não suportado."
-
-                    # Envia a resposta de volta ao cliente
-                    client_socket.sendall(command_response.SerializeToString())
-
-                except Exception as e:
-                    logger.info(f"Erro ao processar comando: {e}")
-                    # Resposta de erro
-                    command_response = device_pb2.CommandResponse(success=False, message=f"Erro: {e}")
-                    client_socket.sendall(command_response.SerializeToString())
-
+                print(f"Comando recebido: {device_command.command}")
+                response_message = handle_client_command(device_command, devices)
+                command_response = proto.CommandResponse(success=True, message=response_message)
+                client_socket.sendall(command_response.SerializeToString())
+        except Exception as e:
+            print(f"Erro ao processar comando do cliente: {e}")
+        finally:
             client_socket.close()
 
-    def start(self):
-        """
-        Inicia o gateway, criando threads para:
-          - Receber mensagens multicast dos dispositivos
-          - Escutar por comandos de clientes
-        """
-        # Thread do multicast
-        threading.Thread(target=self.multicast_receiver, daemon=True).start()
-        # Thread do socket TCP para escutar comandos do cliente
-        threading.Thread(target=self.client_listener, daemon=True).start()
+def handle_client_command(command, devices):
+    """
+    Processa o comando do cliente e retorna a resposta.
+    """
+    if command.command.lower() == 'listar dispositivos':
+        if not devices:
+            return "Nenhum dispositivo conectado."
+        
+        return "\n".join([
+            f"{dev_id}: {info.get('device_type', 'desconhecido')} em {info.get('device_ip', 'desconhecido')}:{info.get('device_port', 'desconhecido')}\n"
+            f"  Estado: {'ON' if info.get('is_on', False) else 'OFF'}\n"
+            f"  Brilho: {info.get('brightness', 'N/A')}\n"
+            f"  Cor: {info.get('color', 'N/A')}"
+            for dev_id, info in devices.items()
+        ])
+    elif command.command.lower() == 'luminosidade':
+        device_id = command.device_id
+        if device_id in devices:
+            device_info = devices[device_id]
+            threading.Thread(
+                target=change_device_state,
+                args=(device_info['device_ip'], device_info['device_port'], 'luminosidade', device_id, command.brightness)
+            ).start()
+            return f"Comando de luminosidade enviado para {device_id}."
+        else:
+            return f"Dispositivo {device_id} não encontrado."
 
-        logger.info("Gateway iniciado. Recebendo dispositivos e aguardando comandos...")
-        try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            logger.info("Interrompido pelo usuário.")
 
-# Exemplo de uso
+
+    elif command.command.lower() in ['ligar', 'desligar']:
+        device_id = command.device_id
+        if device_id in devices:
+            device_info = devices[device_id]
+            threading.Thread(
+                target=change_device_state, 
+                args=(device_info.get('device_ip'), device_info.get('device_port'), command.command)
+            ).start()
+            return f"Comando '{command.command}' enviado para {device_id}."
+        else:
+            return f"Dispositivo {device_id} não encontrado."
+    else:
+        return f"Comando desconhecido: {command.command}"
+    
+
+
+def main():
+    devices = {}
+    discovered_ips = set()
+
+    threading.Thread(target=multicast_receiver, args=(devices, discovered_ips), daemon=True).start()
+    threading.Thread(target=client_listener, args=(devices,), daemon=True).start()
+
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("Gateway encerrado pelo usuário.")
+
 if __name__ == "__main__":
-    gateway = Gateway(tcp_host="localhost", tcp_port=7000)
-    gateway.start()
+    main()
