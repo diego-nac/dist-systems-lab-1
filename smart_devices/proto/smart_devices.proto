@@ -37,14 +37,15 @@ message CommandResponse {
 
 // Mensagem para descoberta de dispositivos
 message DeviceDiscovery {
-  string device_id = 1;
-  string device_name = 2;
-  string device_type = 3;
-  bool is_on = 4;
-  float brightness = 5;
-  string color = 6;
-  string device_ip = 7;
-  int32 device_port = 8;
+  string device_id = 1;      // ID do dispositivo
+  string device_name = 2;    // Nome do dispositivo
+  string device_type = 3;    // Tipo do dispositivo (e.g., Lamp, MotionSensor)
+  bool is_on = 4;            // Estado ligado/desligado
+  float brightness = 5;      // Brilho (somente para lâmpadas)
+  string color = 6;          // Cor (somente para lâmpadas)
+  string device_ip = 7;      // IP do dispositivo
+  int32 device_port = 8;     // Porta do dispositivo
+  bool motion_detected = 9;  // Indica se um movimento foi detectado (somente para sensores de movimento)
 }
 
 // Serviço para gerenciar dispositivos inteligentes

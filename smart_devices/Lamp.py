@@ -6,7 +6,7 @@ from threading import Thread
 class Lamp(SmartDevice):
     VALID_COLORS = {"white", "red", "blue", "green", "yellow", "purple", "orange"}
 
-    def __init__(self, device_id: str, device_name: str, is_on: bool = False, brightness: float = 0.8, color: str = "white", device_ip: str = DEVICES_IP, device_port: int = DEVICES_PORT):
+    def __init__(self, device_id: str, device_name: str, is_on: bool = False, brightness: float = 0.8, color: str = "white", device_ip: str = LAMP_IP, device_port: int = DEVICES_PORT):
         super().__init__(
             device_id=device_id,
             device_name=device_name,
