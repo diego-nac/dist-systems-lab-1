@@ -5,12 +5,12 @@ import time
 import smart_devices.proto.smart_devices_pb2 as proto  # Arquivo gerado a partir do Protobuf
 from utils.configs import *  # Configurações compartilhadas
 
+
 def parse_device_info(message, addr, discovered_ips, devices):
     """
     Desserializa e processa a mensagem de descoberta de dispositivos usando Protobuf.
     """
     try:
-        # Deserializa a mensagem Protobuf
         device_data = proto.DeviceDiscovery()
         device_data.ParseFromString(message)
 
@@ -18,12 +18,12 @@ def parse_device_info(message, addr, discovered_ips, devices):
         device_name = device_data.device_name
         device_type = device_data.device_type
         is_on = device_data.is_on
-        brightness = device_data.brightness
-        color = device_data.color
+        brightness = device_data.brightness if device_type == "Lamp" else None
+        color = device_data.color if device_type == "Lamp" else None
+        motion_detected = device_data.motion_detected if device_type == "MotionSensor" else None
         device_ip = device_data.device_ip
         device_port = device_data.device_port
 
-        # Atualiza informações do dispositivo no dicionário
         devices[device_id] = {
             'device_id': device_id,
             'device_name': device_name,
@@ -31,11 +31,11 @@ def parse_device_info(message, addr, discovered_ips, devices):
             'is_on': is_on,
             'brightness': brightness,
             'color': color,
+            'motion_detected': motion_detected,
             'device_ip': device_ip,
             'device_port': device_port
         }
 
-        # Log detalhado sobre o dispositivo descoberto
         if device_id not in discovered_ips:
             discovered_ips.add(device_id)
             print(f"Novo dispositivo descoberto:")
@@ -43,14 +43,17 @@ def parse_device_info(message, addr, discovered_ips, devices):
             print(f" - Nome: {device_name}")
             print(f" - Tipo: {device_type}")
             print(f" - Estado: {'ON' if is_on else 'OFF'}")
-            if device_type.lower() == "lamp":
+            if device_type == "Lamp":
                 print(f" - Brilho: {brightness * 100:.1f}%")
                 print(f" - Cor: {color}")
+            elif device_type == "MotionSensor":
+                print(f" - Movimento Detectado: {'Sim' if motion_detected else 'Não'}")
             print(f" - IP: {device_ip}")
             print(f" - Porta: {device_port}")
 
     except Exception as e:
         print(f"Erro ao parsear a mensagem: {e}")
+
 
 def multicast_receiver(devices, discovered_ips):
     """
@@ -76,6 +79,7 @@ def multicast_receiver(devices, discovered_ips):
             parse_device_info(data, addr, discovered_ips, devices)
         except Exception as e:
             print(f"Erro no recebimento de mensagem multicast: {e}")
+            
 def change_device_state(device_ip, device_port, command, device_id=None, brightness=None, color=None):
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
@@ -91,14 +95,20 @@ def change_device_state(device_ip, device_port, command, device_id=None, brightn
             if color:
                 device_command.color = color
 
-            print(f"Enviando comando: {command}")
+            print(f"Enviando comando: {command} para {device_id}")
             client_socket.sendall(device_command.SerializeToString())
 
             response = client_socket.recv(1024)
             command_response = proto.CommandResponse()
             command_response.ParseFromString(response)
 
-            print(f"Resposta do dispositivo: {command_response.message}")
+            # Resposta especial baseada no tipo do dispositivo
+            if "Lamp" in device_id:
+                print(f"[Lamp Resposta] {command_response.message}")
+            elif "MotionSensor" in device_id:
+                print(f"[MotionSensor Resposta] {command_response.message}")
+            else:
+                print(f"[Dispositivo Genérico] {command_response.message}")
 
     except Exception as e:
         print(f"Erro ao enviar comando para {device_ip}:{device_port}: {e}")
@@ -139,14 +149,31 @@ def handle_client_command(command, devices):
     if command.command.lower() == 'listar dispositivos':
         if not devices:
             return "Nenhum dispositivo conectado."
-        
-        return "\n".join([
-            f"{dev_id}: {info.get('device_type', 'desconhecido')} em {info.get('device_ip', 'desconhecido')}:{info.get('device_port', 'desconhecido')}\n"
-            f"  Estado: {'ON' if info.get('is_on', False) else 'OFF'}\n"
-            f"  Brilho: {round(info.get('brightness', 'N/A')*100,2)}\n"
-            f"  Cor: {info.get('color', 'N/A')}"
-            for dev_id, info in devices.items()
-        ])
+
+        formatted_devices = []
+        for dev_id, info in devices.items():
+            # Verificar o tipo de dispositivo para exibir as informações corretas
+            if info.get("device_type", "").lower() == "lamp":
+                formatted_devices.append(
+                    f"{dev_id}: {info.get('device_type')} em {info.get('device_ip')}:{info.get('device_port')}\n"
+                    f"  Estado: {'ON' if info.get('is_on', False) else 'OFF'}\n"
+                    f"  Brilho: {round(info.get('brightness', 0.0) * 100, 1)}%\n"
+                    f"  Cor: {info.get('color', 'N/A')}"
+                )
+            elif info.get("device_type", "").lower() == "motionsensor":
+                formatted_devices.append(
+                    f"{dev_id}: {info.get('device_type')} em {info.get('device_ip')}:{info.get('device_port')}\n"
+                    f"  Estado: {'ON' if info.get('is_on', False) else 'OFF'}\n"
+                    f"  Movimento Detectado: {'Sim' if info.get('motion_detected', False) else 'Não'}"
+                )
+            else:
+                formatted_devices.append(
+                    f"{dev_id}: {info.get('device_type')} em {info.get('device_ip')}:{info.get('device_port')}\n"
+                    f"  Estado: {'ON' if info.get('is_on', False) else 'OFF'}"
+                )
+
+        return "\n".join(formatted_devices)
+
     elif command.command.lower() == 'brightness':
         device_id = command.device_id
         if device_id in devices:

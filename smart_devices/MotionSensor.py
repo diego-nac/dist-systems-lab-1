@@ -71,11 +71,3 @@ class MotionSensor(SmartDevice):
     def __del__(self):
         """Libera a câmera ao finalizar o processo."""
         self._camera.release()
-
-if __name__ == "__main__":
-    motion_sensor = MotionSensor(device_id="motion_sensor_001", device_name="Motion Sensor Sala")
-    try:
-        Thread(target=motion_sensor.send_state_periodically, daemon=True).start()
-        motion_sensor.listen_for_commands()
-    except KeyboardInterrupt:
-        logger.info("Encerrando o sensor de movimento.")
