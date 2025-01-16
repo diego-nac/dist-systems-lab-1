@@ -78,13 +78,10 @@ def multicast_receiver(devices, discovered_ips):
             print(f"Erro no recebimento de mensagem multicast: {e}")
 
 def change_device_state(device_ip, device_port, command, device_id=None, luminosity=None):
-    """
-    Envia comando TCP para um dispositivo usando Protobuf.
-    """
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
+            print(f"Conectando ao dispositivo {device_ip}:{device_port}")
             client_socket.connect((device_ip, device_port))
-            print(f"Conectado ao dispositivo {device_ip}:{device_port}. Enviando comando: {command}")
 
             device_command = proto.DeviceCommand()
             device_command.command = command
@@ -93,6 +90,7 @@ def change_device_state(device_ip, device_port, command, device_id=None, luminos
             if luminosity is not None:
                 device_command.luminosity = luminosity
 
+            print(f"Enviando comando: {command}")
             client_socket.sendall(device_command.SerializeToString())
 
             response = client_socket.recv(1024)
@@ -102,8 +100,8 @@ def change_device_state(device_ip, device_port, command, device_id=None, luminos
             print(f"Resposta do dispositivo: {command_response.message}")
 
     except Exception as e:
-        print(f"Erro ao enviar comando para o dispositivo {device_ip}:{device_port}: {e}")
-        
+        print(f"Erro ao enviar comando para {device_ip}:{device_port}: {e}")
+
 def client_listener(devices):
     """
     Escuta comandos de cliente (via TCP) para controlar dispositivos.

@@ -11,7 +11,6 @@ class SmartDevice(ABC):
     Classe abstrata para representar dispositivos inteligentes.
     Define a estrutura básica e métodos necessários para qualquer dispositivo inteligente.
     """
-
     def __init__(self, device_id: str, device_name: str, device_type: str, is_on: bool, device_ip: str, device_port: int):
         self._id = device_id
         self._name = device_name
@@ -19,7 +18,21 @@ class SmartDevice(ABC):
         self._is_on = is_on
         self._ip = device_ip
         self._port = device_port
-        self.tcp_connected = False  # Define se há uma conexão TCP ativa
+        self.tcp_connected = False
+        if not self._validate_ip_port():
+            raise ValueError(f"IP ou porta inválidos: {device_ip}:{device_port}")
+
+    def _validate_ip_port(self) -> bool:
+        """
+        Valida o IP e a porta configurados para o dispositivo.
+        """
+        try:
+            socket.inet_aton(self._ip)
+            assert 1024 < self._port < 65535
+            return True
+        except Exception:
+            return False
+
 
     @property
     def id(self) -> str:
@@ -109,58 +122,62 @@ class SmartDevice(ABC):
         )
 
     def start_multicast(self):
-        """
-        Envia periodicamente o estado do dispositivo via socket multicast.
-        """
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
-        sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_LOOP, 1)
-        sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(LOCAL_IP))
-
         while True:
             try:
-                message = self.to_proto().SerializeToString()
-                logger.info(f"Enviando estado do dispositivo {self.id} para {MCAST_GROUP}:{MCAST_PORT}")
-                sock.sendto(message, (MCAST_GROUP, MCAST_PORT))
+                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as sock:
+                    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
+                    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(LOCAL_IP))
+                    message = self.to_proto().SerializeToString()
+                    logger.info(f"[Multicast] Enviando estado do dispositivo {self.id} para {MCAST_GROUP}:{MCAST_PORT}")
+                    sock.sendto(message, (MCAST_GROUP, MCAST_PORT))
                 time.sleep(DISCOVERY_DELAY)
             except Exception as e:
-                logger.error(f"Erro ao enviar multicast: {e}")
+                logger.error(f"[Multicast] Erro ao enviar multicast: {e}")
+                time.sleep(5)  # Espera antes de tentar novamente
 
     def listen_for_commands(self):
         """
         Escuta e processa comandos recebidos via TCP.
         """
-        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_socket.bind((self.ip, self.port))
-        server_socket.listen(5)
-        logger.info(f"Dispositivo {self.name} aguardando conexões TCP na porta {self.port}...")
+        try:
+            logger.info(f"[TCP] Configurando socket na porta {self.port} e IP {self.ip}")
+            
+            server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            server_socket.bind(("0.0.0.0", self.port))  # Substitua pelo IP correto, se necessário
+            server_socket.listen(5)
+            logger.info(f"[TCP] {self.name} aguardando conexões TCP na porta {self.port}...")
+            
+            while True:
+                try:
+                    client_socket, client_address = server_socket.accept()
+                    logger.info(f"[TCP] Conexão estabelecida com {client_address}")
+                    data = client_socket.recv(BUFFER_SIZE)
+                    
+                    if data:
+                        device_command = proto.DeviceCommand()
+                        device_command.ParseFromString(data)
+                        logger.info(f"[TCP] Comando recebido: {device_command.command}")
 
-        while True:
-            try:
-                client_socket, client_address = server_socket.accept()
-                self.tcp_connected = True  # Marca que há uma conexão TCP ativa
-                logger.info(f"Conexão TCP estabelecida com {client_address}")
+                        # Processa o comando
+                        response_message = self.process_command(device_command)
 
-                data = client_socket.recv(1024)
-                if data:
-                    device_command = proto.DeviceCommand()
-                    device_command.ParseFromString(data)
-                    logger.info(f"Comando recebido: {device_command.command}")
+                        # Envia resposta
+                        command_response = proto.CommandResponse(
+                            success=True if response_message else False,
+                            message=response_message
+                        )
+                        client_socket.sendall(command_response.SerializeToString())
 
-                    response_message = self.process_command(device_command)
+                except Exception as e:
+                    logger.error(f"[TCP] Erro ao processar comando: {e}")
+                finally:
+                    client_socket.close()
+        except Exception as e:
+            logger.error(f"[TCP] Erro na configuração do servidor TCP: {e}")
+        finally:
+            server_socket.close()
 
-                    command_response = proto.CommandResponse(
-                        success=True if "ON" in response_message or "OFF" in response_message else False,
-                        message=response_message
-                    )
-                    client_socket.sendall(command_response.SerializeToString())
-
-            except socket.error as e:
-                logger.error(f"Erro de socket: {e}")
-            except Exception as e:
-                logger.error(f"Erro ao processar comando: {e}")
-            finally:
-                client_socket.close()
 
     def start(self):
         """
@@ -169,17 +186,22 @@ class SmartDevice(ABC):
         - Outra para escutar comandos via TCP.
         """
         logger.info(f"Iniciando dispositivo {self.name} ({self.type})...")
-        multicast_thread = Thread(target=self.start_multicast, daemon=True)
-        tcp_listener_thread = Thread(target=self.listen_for_commands, daemon=True)
-
-        multicast_thread.start()
-        tcp_listener_thread.start()
 
         try:
+            multicast_thread = Thread(target=self.start_multicast, daemon=True)
+            tcp_listener_thread = Thread(target=self.listen_for_commands, daemon=True)
+
+            multicast_thread.start()
+            tcp_listener_thread.start()
+
+            # Manter o processo ativo
             while True:
                 time.sleep(1)
         except KeyboardInterrupt:
             logger.info("Dispositivo interrompido pelo usuário.")
+        except Exception as e:
+            logger.error(f"Erro ao iniciar threads do dispositivo: {e}")
+
 
     def __str__(self):
         """
