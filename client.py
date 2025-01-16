@@ -92,13 +92,13 @@ def main():
         elif choice == 4:
             device_id = input("Digite o ID da lâmpada: ").strip()
             try:
-                brightness = float(input("Digite o nível de luminosidade (0 a 100): "))
+                brightness = float(input("Digite o nível de brightness (0 a 100): "))
                 if 0 <= brightness <= 100:
-                    client.send_command(command="luminosidade", device_id=device_id, brightness=brightness)
+                    client.send_command(command="brightness", device_id=device_id, brightness=brightness)
                 else:
-                    print("Valor de luminosidade inválido! Use um valor entre 0 e 100.")
+                    print("Valor de brightness inválido! Use um valor entre 0 e 100.")
             except ValueError:
-                print("Valor de luminosidade inválido! Deve ser numérico.")
+                print("Valor de brightness inválido! Deve ser numérico.")
 
         elif choice == 5:
             device_id = input("Digite o ID da lâmpada: ").strip()

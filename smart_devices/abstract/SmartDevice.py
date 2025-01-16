@@ -144,9 +144,9 @@ class SmartDevice(ABC):
             
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            server_socket.bind(("0.0.0.0", self.port))  # Substitua pelo IP correto, se necessário
+            server_socket.bind(("0.0.0.0", self._port))  # Substitua pelo IP correto, se necessário
             server_socket.listen(5)
-            logger.info(f"[TCP] {self.name} aguardando conexões TCP na porta {self.port}...")
+            logger.info(f"[TCP] {self.name} aguardando conexões TCP na porta {self._port}...")
             
             while True:
                 try:

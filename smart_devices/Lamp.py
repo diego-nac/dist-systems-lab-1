@@ -75,11 +75,11 @@ class Lamp(SmartDevice):
             Thread(target=self.start_multicast, daemon=True).start()
             return f"Lâmpada {self.name} agora está DESLIGADA."
 
-        elif action == "luminosidade":
+        elif action == "brightness":
             try:
                 brightness = device_command.brightness
                 if 0.0 <= brightness <= 100.0:
-                    self.brightness = brightness / 100  # Normaliza para 0.0-1.0
+                    self.brightness = round((brightness / 100),2)  # Normaliza para 0.0-1.0
                     logger.info(f"Luminosidade ajustada para {self.brightness * 100:.0f}% na lâmpada {self.name}.")
                     Thread(target=self.start_multicast, daemon=True).start()
                     return f"Brilho da lâmpada {self.name} ajustado para {self.brightness * 100:.0f}%"
@@ -87,7 +87,7 @@ class Lamp(SmartDevice):
                     return "O valor de brilho deve estar entre 0 e 100."
             except ValueError:
                 return "Valor de brilho inválido."
-
+            
         elif action == "alterar cor":
             color = device_command.color
             if color.lower() in self.VALID_COLORS:

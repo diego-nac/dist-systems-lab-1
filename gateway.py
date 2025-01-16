@@ -76,8 +76,7 @@ def multicast_receiver(devices, discovered_ips):
             parse_device_info(data, addr, discovered_ips, devices)
         except Exception as e:
             print(f"Erro no recebimento de mensagem multicast: {e}")
-
-def change_device_state(device_ip, device_port, command, device_id=None, luminosity=None):
+def change_device_state(device_ip, device_port, command, device_id=None, brightness=None, color=None):
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
             print(f"Conectando ao dispositivo {device_ip}:{device_port}")
@@ -87,8 +86,10 @@ def change_device_state(device_ip, device_port, command, device_id=None, luminos
             device_command.command = command
             if device_id:
                 device_command.device_id = device_id
-            if luminosity is not None:
-                device_command.luminosity = luminosity
+            if brightness is not None:
+                device_command.brightness = brightness
+            if color:
+                device_command.color = color
 
             print(f"Enviando comando: {command}")
             client_socket.sendall(device_command.SerializeToString())
@@ -102,13 +103,15 @@ def change_device_state(device_ip, device_port, command, device_id=None, luminos
     except Exception as e:
         print(f"Erro ao enviar comando para {device_ip}:{device_port}: {e}")
 
+
 def client_listener(devices):
     """
     Escuta comandos de cliente (via TCP) para controlar dispositivos.
     """
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(('localhost', 7000))
-    server_socket.listen(5)
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # Permite reutilizar o endereço
+    server_socket.bind(('localhost', 7000))  # Vincula o socket ao IP e porta
+    server_socket.listen(5)  # Define o número de conexões pendentes na fila
     print("Gateway aguardando comandos do cliente na porta 7000...")
 
     while True:
@@ -129,7 +132,6 @@ def client_listener(devices):
             print(f"Erro ao processar comando do cliente: {e}")
         finally:
             client_socket.close()
-
 def handle_client_command(command, devices):
     """
     Processa o comando do cliente e retorna a resposta.
@@ -141,23 +143,21 @@ def handle_client_command(command, devices):
         return "\n".join([
             f"{dev_id}: {info.get('device_type', 'desconhecido')} em {info.get('device_ip', 'desconhecido')}:{info.get('device_port', 'desconhecido')}\n"
             f"  Estado: {'ON' if info.get('is_on', False) else 'OFF'}\n"
-            f"  Brilho: {info.get('brightness', 'N/A')}\n"
+            f"  Brilho: {round(info.get('brightness', 'N/A')*100,2)}\n"
             f"  Cor: {info.get('color', 'N/A')}"
             for dev_id, info in devices.items()
         ])
-    elif command.command.lower() == 'luminosidade':
+    elif command.command.lower() == 'brightness':
         device_id = command.device_id
         if device_id in devices:
             device_info = devices[device_id]
             threading.Thread(
                 target=change_device_state,
-                args=(device_info['device_ip'], device_info['device_port'], 'luminosidade', device_id, command.brightness)
+                args=(device_info['device_ip'], device_info['device_port'], 'brightness', device_id, command.brightness)
             ).start()
             return f"Comando de luminosidade enviado para {device_id}."
         else:
             return f"Dispositivo {device_id} não encontrado."
-
-
 
     elif command.command.lower() in ['ligar', 'desligar']:
         device_id = command.device_id
@@ -170,9 +170,20 @@ def handle_client_command(command, devices):
             return f"Comando '{command.command}' enviado para {device_id}."
         else:
             return f"Dispositivo {device_id} não encontrado."
+    
+    elif command.command.lower() == 'alterar cor':
+        device_id = command.device_id
+        if device_id in devices:
+            device_info = devices[device_id]
+            threading.Thread(
+                target=change_device_state, 
+                args=(device_info.get('device_ip'), device_info.get('device_port'), 'alterar cor', device_id, None, command.color)
+            ).start()
+            return f"Comando de alteração de cor enviado para {device_id}."
+        else:
+            return f"Dispositivo {device_id} não encontrado."
     else:
         return f"Comando desconhecido: {command.command}"
-    
 
 
 def main():
