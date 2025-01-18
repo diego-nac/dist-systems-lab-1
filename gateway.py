@@ -54,15 +54,15 @@ def parse_device_info(message, addr, discovered_ips, devices):
     except Exception as e:
         print(f"Erro ao parsear a mensagem: {e}")
 
-
 def multicast_receiver(devices, discovered_ips):
     """
     Escuta mensagens multicast enviadas pelos dispositivos.
     """
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(('0.0.0.0', MCAST_PORT))
+    sock.bind(('0.0.0.0', MCAST_PORT))  # Escuta na porta multicast em todas as interfaces
 
+    # Configura o grupo multicast
     group = socket.inet_aton(MCAST_GROUP) + socket.inet_aton(LOCAL_IP)
     try:
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, group)
@@ -74,11 +74,15 @@ def multicast_receiver(devices, discovered_ips):
 
     while True:
         try:
+            # Recebe dados do multicast
             data, addr = sock.recvfrom(BUFFER_SIZE)
             print(f"Mensagem recebida de {addr}")
+
+            # Processa os dados recebidos
             parse_device_info(data, addr, discovered_ips, devices)
         except Exception as e:
             print(f"Erro no recebimento de mensagem multicast: {e}")
+
             
 def change_device_state(device_ip, device_port, command, device_id=None, brightness=None, color=None):
     try:
