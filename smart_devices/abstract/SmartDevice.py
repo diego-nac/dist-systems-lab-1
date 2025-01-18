@@ -134,7 +134,6 @@ class SmartDevice(ABC):
             except Exception as e:
                 logger.error(f"[Multicast] Erro ao enviar multicast: {e}")
                 time.sleep(5)  # Espera antes de tentar novamente
-
     def listen_for_commands(self):
         """
         Escuta e processa comandos recebidos via TCP.
@@ -144,15 +143,15 @@ class SmartDevice(ABC):
             
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            server_socket.bind(("0.0.0.0", self._port))  # Substitua pelo IP correto, se necessário
+            server_socket.bind((self.ip, self.port))  # Escutar no IP específico
             server_socket.listen(5)
-            logger.info(f"[TCP] {self.name} aguardando conexões TCP na porta {self._port}...")
+            logger.info(f"[TCP] {self.name} aguardando conexões TCP no IP {self.ip}, porta {self.port}...")
             
             while True:
                 try:
                     client_socket, client_address = server_socket.accept()
                     logger.info(f"[TCP] Conexão estabelecida com {client_address}")
-                    data = client_socket.recv(BUFFER_SIZE)
+                    data = client_socket.recv(1024)
                     
                     if data:
                         device_command = proto.DeviceCommand()
@@ -175,8 +174,6 @@ class SmartDevice(ABC):
                     client_socket.close()
         except Exception as e:
             logger.error(f"[TCP] Erro na configuração do servidor TCP: {e}")
-        finally:
-            server_socket.close()
 
 
     def start(self):

@@ -42,23 +42,36 @@ class MotionSensor(SmartDevice):
                 logger.info(f"[Multicast] Enviando estado do MotionSensor {self.id} para {MCAST_GROUP}:{MCAST_PORT}")
                 sock.sendto(message, (MCAST_GROUP, MCAST_PORT))
 
+            # Log do estado do dispositivo
+            logger.debug(f"Estado do MotionSensor {self.name}:")
+            logger.debug(f"  - Ligado: {'Sim' if self.is_on else 'Não'}")
+            logger.debug(f"  - Movimento Detectado: {'Sim' if self._motion_detected else 'Não'}")
+            logger.debug(f"  - IP: {self.ip}")
+            logger.debug(f"  - Porta: {self.port}")
+
             time.sleep(15)  # Envia estado a cada 15 segundos
+
 
     def process_command(self, device_command: proto.DeviceCommand):
         """Processa comandos enviados ao sensor."""
         action = device_command.command.lower()
+        logger.debug(f"Comando recebido: {action} para {self.name}")
         if action == "ligar":
             self.is_on = True
+            logger.info(f"{self.name}: Estado atualizado para ligado.")
             return f"Sensor de movimento {self.name} ligado."
         elif action == "desligar":
             self.is_on = False
+            logger.info(f"{self.name}: Estado atualizado para desligado.")
             return f"Sensor de movimento {self.name} desligado."
         else:
+            logger.warning(f"{self.name}: Comando inválido recebido.")
             return f"Comando inválido para o sensor de movimento: {action}"
+
 
     def to_proto(self) -> proto.DeviceDiscovery:
         """Serializa o estado do sensor em uma mensagem Protobuf."""
-        return proto.DeviceDiscovery(
+        proto_message = proto.DeviceDiscovery(
             device_id=self.id,
             device_name=self.name,
             device_type=self.type,
@@ -67,6 +80,9 @@ class MotionSensor(SmartDevice):
             device_port=self.port,
             motion_detected=self._motion_detected
         )
+        
+        logger.info(f"Mensagem Protobuf gerada: {proto_message}")
+        return proto_message
 
     def __del__(self):
         """Libera a câmera ao finalizar o processo."""

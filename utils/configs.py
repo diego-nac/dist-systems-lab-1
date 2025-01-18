@@ -8,7 +8,7 @@ DISCOVERY_DELAY = 2
 LOCAL_IP = get_local_ip()  # Deve ser o IP da máquina que está rodando
 
 # Configurações específicas para dispositivos
-LAMP_IP = generate_device_ip(LOCAL_IP, 1)
+LAMP_IP = generate_device_ip(LOCAL_IP, 10)
 MOTION_SENSOR_IP = generate_device_ip(LOCAL_IP, 5)
 DEVICES_PORT = 5006
 
