@@ -87,3 +87,5 @@ class MotionSensor(SmartDevice):
     def __del__(self):
         """Libera a câmera ao finalizar o processo."""
         self._camera.release()
+        
+        
