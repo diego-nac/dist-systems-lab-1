@@ -22,16 +22,16 @@ from .ips import *
 MCAST_GROUP = '239.1.1.1'
 MCAST_PORT = 7000
 BUFFER_SIZE = 2048
-DISCOVERY_DELAY = 2
+DISCOVERY_DELAY = 5
 LOCAL_IP = get_local_ip()  # Deve ser o IP da máquina que está rodando
 
 # Configurações específicas para dispositivos
-CLIENT_IP = "52.54.249.75"  # IP público da instância do client
-GATEWAY_IP = "18.212.68.69"  # IP público da instância do gateway
-LAMP_IP = "3.83.113.181"  # IP público da instância da lâmpada
+CLIENT_IP = "172.31.93.178"  # IP público da instância do client
+GATEWAY_IP = "172.31.82.96"  # IP público da instância do gateway
+LAMP_IP = "172.31.87.242"  # IP público da instância da lâmpada
 
 # Porta padrão para dispositivos
-DEVICES_PORT = 5006
+DEVICES_PORT = 7000
 
 # Configurações gerais
 PROJECT_NAME = "Smart Home"
