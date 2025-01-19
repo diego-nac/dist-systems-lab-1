@@ -8,9 +8,11 @@ DISCOVERY_DELAY = 5
 LOCAL_IP = get_local_ip()  # IP dinâmico da máquina
 
 # Configurações específicas para dispositivos
-CLIENT_IP = "172.31.93.178"  # IP privado do cliente
-GATEWAY_IP = "172.31.82.96"  # IP privado do gateway
-LAMP_IP = "172.31.87.242"  # IP privado da lâmpada
+CLIENT_IP = generate_ip(1)  # IP privado do cliente
+GATEWAY_IP = generate_ip(2)  # IP privado do gateway
+LAMP_IP = generate_ip(3)  # IP privado da lâmpada
+MOTION_SENSOR_IP = generate_ip(4)  # IP privado da lâmpada
+
 
 # Porta para conexões TCP
 DEVICES_PORT = 5006
