@@ -1,10 +1,10 @@
 from threading import Thread
-import socket
 import time
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 import smart_devices.proto.smart_devices_pb2 as proto
 from utils import *
+import socket   
 
 class SmartDevice(ABC):
     """
@@ -19,20 +19,6 @@ class SmartDevice(ABC):
         self._ip = device_ip
         self._port = device_port
         self.tcp_connected = False
-        if not self._validate_ip_port():
-            raise ValueError(f"IP ou porta inválidos: {device_ip}:{device_port}")
-
-    def _validate_ip_port(self) -> bool:
-        """
-        Valida o IP e a porta configurados para o dispositivo.
-        """
-        try:
-            socket.inet_aton(self._ip)
-            assert 1024 < self._port < 65535
-            return True
-        except Exception:
-            return False
-
 
     @property
     def id(self) -> str:
@@ -133,7 +119,8 @@ class SmartDevice(ABC):
                 time.sleep(DISCOVERY_DELAY)
             except Exception as e:
                 logger.error(f"[Multicast] Erro ao enviar multicast: {e}")
-                time.sleep(5)  # Espera antes de tentar novamente
+                time.sleep(DISCOVERY_DELAY)
+
     def listen_for_commands(self):
         """
         Escuta e processa comandos recebidos via TCP.

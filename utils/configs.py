@@ -1,4 +1,5 @@
-from .ips import *
+from .ips import get_local_ip, generate_ip
+from .files import import_ips_from_json
 
 # Configuração de multicast
 MCAST_GROUP = '239.1.1.1'
@@ -7,11 +8,16 @@ BUFFER_SIZE = 2048
 DISCOVERY_DELAY = 5
 LOCAL_IP = get_local_ip()  # IP dinâmico da máquina
 
-# Configurações específicas para dispositivos
-CLIENT_IP = generate_ip(1)  # IP privado do cliente
-GATEWAY_IP = generate_ip(2)  # IP privado do gateway
-LAMP_IP = generate_ip(3)  # IP privado da lâmpada
-MOTION_SENSOR_IP = generate_ip(4)  # IP privado da lâmpada
+# use a função generate_valid_ips(count) para gerar os ips dos dispositivos e coloque aqui
+# ['192.168.1.8', '192.168.1.9', '192.168.1.10', '192.168.1.11', '192.168.1.12']
+
+VALID_IPS = import_ips_from_json()
+
+
+CLIENT_IP = VALID_IPS[0] 
+GATEWAY_IP = VALID_IPS[1] 
+LAMP_IP = VALID_IPS[2] 
+MOTION_SENSOR_IP = [3] 
 
 
 # Porta para conexões TCP
